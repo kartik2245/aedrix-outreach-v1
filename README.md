@@ -74,7 +74,7 @@ Terminates background FastAPI and Vite services on ports 8000 and 5173 cleanly.
 ## 3. Complete Outreach Pipeline
 
 ```text
-1. Dynamic ICP Designer (Claude 3.5 Sonnet / Local Simulation)
+1. manual icp generator
       ↓
 2. Human ICP Approval Gate (data/icp_approval_queue.json & PostgreSQL)
       ↓
