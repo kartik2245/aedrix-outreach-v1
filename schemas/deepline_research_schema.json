@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DeeplineResearchExportSchema",
+  "description": "JSON Contract Schema for raw export records produced by Deepline / Apollo GTM research tools",
+  "type": "object",
+  "required": [
+    "company_name",
+    "company_domain",
+    "company_location",
+    "industry",
+    "company_size",
+    "contact_name",
+    "job_title",
+    "email",
+    "email_status",
+    "research_signals",
+    "research_sources",
+    "evidence_levels"
+  ],
+  "properties": {
+    "company_name": {
+      "type": "string",
+      "description": "Full organization name"
+    },
+    "company_domain": {
+      "type": "string",
+      "description": "Primary domain name (e.g. bandk.co.uk)"
+    },
+    "company_location": {
+      "type": "string",
+      "description": "Headquarters country or region (e.g. UK)"
+    },
+    "industry": {
+      "type": "string",
+      "description": "Industry classification"
+    },
+    "company_size": {
+      "type": "string",
+      "description": "Employee headcount range"
+    },
+    "employee_count": {
+        "type": "integer",
+        "description": "Normalized employee count (if parseable)"
+    },
+    "revenue": {
+      "type": "string",
+      "description": "Annual turnover or revenue estimate"
+    },
+    "construction_type": {
+      "type": "string",
+      "description": "Specific construction category (e.g. Commercial Main Contractor)"
+    },
+    "business_model": {
+      "type": "string",
+      "description": "Business model classification (e.g. Main Contractor vs Subcontractor)"
+    },
+    "contact_name": {
+      "type": "string",
+      "description": "Decision maker full name"
+    },
+    "job_title": {
+      "type": "string",
+      "description": "Decision maker official job title"
+    },
+    "linkedin_url": {
+      "type": ["string", "null"],
+      "description": "LinkedIn profile URL"
+    },
+    "email": {
+      "type": "string",
+      "description": "Business email address"
+    },
+    "email_status": {
+      "type": "string",
+      "enum": [
+        "EVIDENCE_VERIFIED",
+        "PATTERN_CONFIRMED",
+        "CATCHALL_UNVERIFIED",
+        "INVALID_BOUNCED"
+      ],
+      "description": "Evidence-based email status"
+    },
+    "research_signals": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of factual or inferred corporate signals"
+    },
+    "research_sources": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of public evidence URL citations"
+    },
+    "evidence_levels": {
+      "type": "object",
+      "required": ["company_size", "signal", "pain_point"],
+      "properties": {
+        "company_size": {
+          "type": "string",
+          "enum": ["VERIFIED", "ESTIMATED", "INFERRED", "UNKNOWN"]
+        },
+        "signal": {
+          "type": "string",
+          "enum": ["VERIFIED", "ESTIMATED", "INFERRED", "UNKNOWN"]
+        },
+        "pain_point": {
+          "type": "string",
+          "enum": ["VERIFIED", "ESTIMATED", "INFERRED", "UNKNOWN"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "decision_maker_reason": {
+      "type": "string",
+      "description": "Persona selection rationale"
+    }
+  },
+  "additionalProperties": true
+}

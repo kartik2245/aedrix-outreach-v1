@@ -1,0 +1,187 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AedrixLeadIntelligenceSchema",
+  "description": "Production V1 Lead Intelligence Schema for Aedrix cold outreach system",
+  "type": "object",
+  "required": [
+    "company_name",
+    "company_domain",
+    "contact_name",
+    "job_title",
+    "email",
+    "email_status",
+    "linkedin_url",
+    "company_size",
+    "company_size_evidence",
+    "industry",
+    "opportunity_score",
+    "accessibility_score",
+    "outreach_priority_index",
+    "priority_level",
+    "opportunity_tier",
+    "accessibility_tier",
+    "disqualification_status",
+    "personalization_note_status",
+    "personalization_note",
+    "research_sources",
+    "ICP_score",
+    "pain_point",
+    "pain_point_evidence",
+    "relevant_signal",
+    "relevant_signal_evidence"
+  ],
+  "properties": {
+    "company_name": {
+      "type": "string",
+      "description": "Full registered name of target firm"
+    },
+    "company_domain": {
+      "type": "string",
+      "description": "Primary company domain (e.g. bandk.co.uk)"
+    },
+    "contact_name": {
+      "type": "string",
+      "description": "Full name of targeted decision-maker"
+    },
+    "job_title": {
+      "type": "string",
+      "description": "Official title of decision-maker"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "Business email address"
+    },
+    "email_status": {
+      "type": "string",
+      "enum": [
+        "EVIDENCE_VERIFIED",
+        "PATTERN_CONFIRMED",
+        "CATCHALL_UNVERIFIED",
+        "INVALID_BOUNCED"
+      ],
+      "description": "Evidence-based email verification status"
+    },
+    "linkedin_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Decision-maker LinkedIn URL"
+    },
+    "company_size": {
+      "type": "string",
+      "description": "Employee count or headcount range"
+    },
+    "company_size_evidence": {
+      "type": "string",
+      "enum": ["VERIFIED", "ESTIMATED", "INFERRED", "UNKNOWN"],
+      "description": "Evidence level for company size"
+    },
+    "industry": {
+      "type": "string",
+      "description": "Primary construction category/sector"
+    },
+    "opportunity_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "100-point Opportunity Score evaluating account value & fit"
+    },
+    "accessibility_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "100-point Accessibility Score evaluating reachability & procurement speed"
+    },
+    "outreach_priority_index": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Combined Outreach Priority Index: (0.60 * Opportunity) + (0.40 * Accessibility)"
+    },
+    "priority_level": {
+      "type": "string",
+      "enum": ["P1", "P2", "P3"],
+      "description": "Priority tier assignment (P1 >= 85, P2 70-84.9, P3 < 70)"
+    },
+    "opportunity_tier": {
+      "type": "string",
+      "description": "Strategic opportunity tier"
+    },
+    "accessibility_tier": {
+      "type": "string",
+      "enum": ["High", "Medium", "Low"],
+      "description": "Reachability accessibility tier"
+    },
+    "disqualification_status": {
+      "type": "string",
+      "enum": ["QUALIFIED", "HARD_DISQUALIFIED", "CAMPAIGN_EXCLUDED"],
+      "description": "Lead qualification status"
+    },
+    "disqualification_reason": {
+      "type": "string",
+      "description": "Reason for hard disqualification or campaign exclusion, if applicable"
+    },
+    "personalization_note_status": {
+      "type": "string",
+      "enum": ["SIGNAL_VERIFIED", "NO_STRONG_SIGNAL"],
+      "description": "Status of personalization note grounding"
+    },
+    "personalization_note": {
+      "type": "string",
+      "maxLength": 300,
+      "description": "Max 2-sentence fact-grounded personalization note or baseline fallback"
+    },
+    "research_sources": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Array of public research evidence URLs"
+    },
+    "ICP_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Legacy compatibility alias for opportunity_score"
+    },
+    "pain_point": {
+      "type": "string",
+      "description": "Identified operational complexity or document/manpower challenge"
+    },
+    "pain_point_evidence": {
+      "type": "string",
+      "enum": ["VERIFIED", "ESTIMATED", "INFERRED", "UNKNOWN"],
+      "description": "Evidence level for identified pain point"
+    },
+    "relevant_signal": {
+      "type": "string",
+      "description": "Recent corporate appointment, digital mandate, or growth signal"
+    },
+    "relevant_signal_evidence": {
+      "type": "string",
+      "enum": ["VERIFIED", "ESTIMATED", "INFERRED", "UNKNOWN"],
+      "description": "Evidence level for corporate signal"
+    },
+    "persona_selection_rationale": {
+      "type": "string",
+      "description": "Rationale for why the selected contact title fits persona rules"
+    },
+    "role_track": {
+      "type": "string",
+      "enum": ["R1", "R2", "R3", "R4", "R5", "R6", "UNCLASSIFIED"],
+      "description": "Deterministic R1-R6 role-track classification"
+    },
+    "role_classification_status": {
+      "type": "string",
+      "enum": ["CLASSIFIED", "AMBIGUOUS", "UNCLASSIFIED"],
+      "description": "Deterministic role-classification outcome"
+    },
+    "role_matched_keyword": {
+      "type": ["string", "null"],
+      "description": "Title text or keyword used for deterministic classification"
+    },
+    "role_match_reason": {
+      "type": ["string", "null"],
+      "description": "Reason for the role-classification outcome"
+    }
+  },
+  "additionalProperties": false
+}

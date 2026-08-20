@@ -1,0 +1,222 @@
+{
+  "name": "Aedrix AI Cold Outreach Event-Driven Orchestration (Smartlead -> n8n -> Claude -> Human Gate)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smartlead-events",
+        "options": {}
+      },
+      "name": "Webhook: Smartlead Event Listener",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Normalize incoming Smartlead event into standard Aedrix Event Model\nconst raw = items[0].json;\nconst rawType = (raw.event_type || raw.event_name || raw.type || raw.event || '').toUpperCase();\n\nlet normalizedType = 'EMAIL_OPENED';\nif (rawType.includes('OPEN')) normalizedType = 'EMAIL_OPENED';\nelse if (rawType.includes('REPL')) normalizedType = 'EMAIL_REPLIED';\nelse if (rawType.includes('BOUNCE')) normalizedType = 'EMAIL_BOUNCED';\nelse if (rawType.includes('UNSUB') || rawType.includes('OPT_OUT')) normalizedType = 'EMAIL_UNSUBSCRIBED';\nelse if (rawType.includes('CLICK')) normalizedType = 'EMAIL_CLICKED';\nelse if (rawType.includes('SENT') || rawType.includes('SEND')) normalizedType = 'EMAIL_SENT';\n\nconst leadEmail = raw.lead_email || raw.to_email || raw.email || (raw.lead && raw.lead.email) || '';\nconst replyText = raw.reply_text || raw.body || (raw.message) || '';\n\nreturn [{\n  json: {\n    event_type: normalizedType,\n    lead_email: leadEmail,\n    reply_text: replyText,\n    campaign_id: raw.campaign_id || (raw.campaign && raw.campaign.id) || '',\n    timestamp: raw.timestamp || new Date().toISOString(),\n    raw_payload: raw\n  }\n}];"
+      },
+      "name": "Normalize Smartlead Event",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [300, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.event_type }}",
+              "value2": "EMAIL_OPENED"
+            }
+          ]
+        }
+      },
+      "name": "Check: Is Email Opened?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.event_type }}",
+              "value2": "EMAIL_REPLIED"
+            }
+          ]
+        }
+      },
+      "name": "Check: Is Email Replied?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [520, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.event_type }}",
+              "value2": "EMAIL_BOUNCED"
+            }
+          ]
+        }
+      },
+      "name": "Check: Is Bounced or Unsubscribed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [520, 700]
+    },
+    {
+      "parameters": {
+        "amount": 24,
+        "unit": "hours"
+      },
+      "name": "Delay: Wait 1 Day (Branch A)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [750, 250]
+    },
+    {
+      "parameters": {
+        "prompt": "=Generate Follow-up A (max 90 words) referencing the opened context without hallucination for lead: {{ $json.lead_email }}"
+      },
+      "name": "Claude: Generate Follow-up A",
+      "type": "n8n-nodes-base.anthropic",
+      "typeVersion": 1,
+      "position": [950, 250]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SMARTLEAD_BASE_URL || 'https://server.smartlead.ai/api/v1' }}/campaigns/{{ $json.campaign_id }}/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "api_key", "value": "={{ $env.SMARTLEAD_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "email", "value": "={{ $json.lead_email }}" },
+            { "name": "custom_fields", "value": "={{ { followup_a_body: $node[\"Claude: Generate Follow-up A\"].json.body } }}" }
+          ]
+        }
+      },
+      "name": "Smartlead: Update Follow-up A Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1150, 250]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Classify prospect reply text\nconst reply = ($json.reply_text || '').toLowerCase();\nlet classification = 'NEGATIVE';\nlet requiresHandoff = false;\n\nif (reply.includes('unsubscribe') || reply.includes('remove me') || reply.includes('opt out')) {\n  classification = 'UNSUBSCRIBE';\n} else if (reply.includes('out of office') || reply.includes('vacation') || reply.includes('auto-reply')) {\n  classification = 'OOO';\n} else if (reply.includes('demo') || reply.includes('meeting') || reply.includes('call') || reply.includes('interested') || reply.includes('yes') || reply.includes('schedule')) {\n  classification = 'POSITIVE';\n  requiresHandoff = true;\n}\n\nreturn [{ json: { ...$json, classification, requires_handoff: requiresHandoff } }];"
+      },
+      "name": "Classify Prospect Reply",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [750, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.classification }}",
+              "value2": "POSITIVE"
+            }
+          ]
+        }
+      },
+      "name": "Check: Is Positive Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [950, 500]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SLACK_HANDOFF_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "text", "value": "🚨 *POSITIVE Prospect Reply Alert*\n*Lead*: {{ $json.lead_email }}\n*Reply*: \"{{ $json.reply_text }}\"\n*Action Required*: Sales team handoff within 1 hour." }
+          ]
+        }
+      },
+      "name": "Slack: Instant Sales Handoff Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1150, 450]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SMARTLEAD_BASE_URL || 'https://server.smartlead.ai/api/v1' }}/campaigns/{{ $json.campaign_id }}/leads/pause",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "api_key", "value": "={{ $env.SMARTLEAD_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "email", "value": "={{ $json.lead_email }}" },
+            { "name": "pause_reason", "value": "={{ $json.classification || 'BOUNCE_OR_UNSUBSCRIBE' }}" }
+          ]
+        }
+      },
+      "name": "Smartlead: Pause Lead Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [950, 700]
+    }
+  ],
+  "connections": {
+    "Webhook: Smartlead Event Listener": {
+      "main": [[{ "node": "Normalize Smartlead Event", "type": "main", "index": 0 }]]
+    },
+    "Normalize Smartlead Event": {
+      "main": [
+        [{ "node": "Check: Is Email Opened?", "type": "main", "index": 0 }],
+        [{ "node": "Check: Is Email Replied?", "type": "main", "index": 0 }],
+        [{ "node": "Check: Is Bounced or Unsubscribed?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check: Is Email Opened?": {
+      "main": [
+        [{ "node": "Delay: Wait 1 Day (Branch A)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Delay: Wait 1 Day (Branch A)": {
+      "main": [[{ "node": "Claude: Generate Follow-up A", "type": "main", "index": 0 }]]
+    },
+    "Claude: Generate Follow-up A": {
+      "main": [[{ "node": "Smartlead: Update Follow-up A Content", "type": "main", "index": 0 }]]
+    },
+    "Check: Is Email Replied?": {
+      "main": [
+        [{ "node": "Classify Prospect Reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "Classify Prospect Reply": {
+      "main": [
+        [{ "node": "Check: Is Positive Reply?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check: Is Positive Reply?": {
+      "main": [
+        [{ "node": "Slack: Instant Sales Handoff Alert", "type": "main", "index": 0 }, { "node": "Smartlead: Pause Lead Outreach", "type": "main", "index": 0 }],
+        [{ "node": "Smartlead: Pause Lead Outreach", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check: Is Bounced or Unsubscribed?": {
+      "main": [
+        [{ "node": "Smartlead: Pause Lead Outreach", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}

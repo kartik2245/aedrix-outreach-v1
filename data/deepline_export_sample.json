@@ -1,0 +1,141 @@
+[
+  {
+    "company_name": "Bowmer & Kirkland (B&K)",
+    "company_domain": "bandk.co.uk",
+    "company_location": "UK",
+    "industry": "Commercial Construction",
+    "company_size": "1,500+ employees",
+    "revenue": "£1.1B+",
+    "construction_type": "Commercial & Industrial Main Contractor",
+    "business_model": "Main Contractor",
+    "contact_name": "John Foster",
+    "job_title": "Business Improvement Director",
+    "linkedin_url": "https://www.linkedin.com/in/johnfosterbk",
+    "email": "j.foster@bandk.co.uk",
+    "email_status": "PATTERN_CONFIRMED",
+    "research_signals": [
+      "Appointed Business Improvement Director in October 2025 to lead digital transformation across UK regions; expanded digital construction team to 12 members."
+    ],
+    "research_sources": [
+      "https://www.bandk.co.uk/news/john-foster-appointment-2025",
+      "https://wearenima.im/digital-construction-team-expansion"
+    ],
+    "evidence_levels": {
+      "company_size": "ESTIMATED",
+      "signal": "VERIFIED",
+      "pain_point": "INFERRED"
+    },
+    "decision_maker_reason": "Selected Business Improvement / Operations Director for mid-market private contractor (direct software budget authority & fast procurement)."
+  },
+  {
+    "company_name": "Kier Group plc",
+    "company_domain": "kier.co.uk",
+    "company_location": "UK",
+    "industry": "Infrastructure Services & Regional Building",
+    "company_size": "10,000+ employees",
+    "revenue": "£3.4B",
+    "construction_type": "Regional Building & Civil Infrastructure Main Contractor",
+    "business_model": "Main Contractor",
+    "contact_name": "Colin Bell",
+    "job_title": "Digital Director (Kier Construction)",
+    "linkedin_url": "https://www.linkedin.com/in/colinbellkier",
+    "email": "c.bell@kier.co.uk",
+    "email_status": "PATTERN_CONFIRMED",
+    "research_signals": [
+      "Operates an official 'Digital by Default' strategy; restructured digital and data leadership in 2026 under Group COO Louisa Finlay."
+    ],
+    "research_sources": [
+      "https://www.kier.co.uk/media/digital-by-default-strategy",
+      "https://www.kier.co.uk/news/2026-leadership-appointments"
+    ],
+    "evidence_levels": {
+      "company_size": "VERIFIED",
+      "signal": "VERIFIED",
+      "pain_point": "INFERRED"
+    },
+    "decision_maker_reason": "Selected Digital Director (Construction Division) for Tier-1 Public PLC (direct control over construction division digital systems)."
+  },
+  {
+    "company_name": "Balfour Beatty plc",
+    "company_domain": "balfourbeatty.com",
+    "company_location": "UK",
+    "industry": "Major Infrastructure & Civil Engineering",
+    "company_size": "26,000 global (~12,000+ UK)",
+    "revenue": "£8.9B",
+    "construction_type": "Major Infrastructure & Energy Main Contractor",
+    "business_model": "Main Contractor",
+    "contact_name": "Jon Ozanne",
+    "job_title": "Chief Information Officer (CIO)",
+    "linkedin_url": "https://www.linkedin.com/in/jonozanne",
+    "email": "j.ozanne@balfourbeatty.com",
+    "email_status": "PATTERN_CONFIRMED",
+    "research_signals": [
+      "Promoted to Group CIO in September 2024 with a public mandate to turn IT into a digital delivery engine for AI and project data integration."
+    ],
+    "research_sources": [
+      "https://www.balfourbeatty.com/news/jon-ozanne-promoted-cio-2024",
+      "https://www.bmc.com/blogs/balfour-beatty-digital-transformation"
+    ],
+    "evidence_levels": {
+      "company_size": "VERIFIED",
+      "signal": "VERIFIED",
+      "pain_point": "INFERRED"
+    },
+    "decision_maker_reason": "Selected Group CIO for mega-infrastructure PLC (group-wide mandate over enterprise IT platforms and AI delivery)."
+  },
+  {
+    "company_name": "Laing O'Rourke",
+    "company_domain": "laingorourke.com",
+    "company_location": "UK",
+    "industry": "Advanced Digital Construction & Modular Infrastructure",
+    "company_size": "13,000+ employees",
+    "revenue": "£3.0B",
+    "construction_type": "Modular DfMA & Civil Engineering Main Contractor",
+    "business_model": "Main Contractor",
+    "contact_name": "Adrian Spragg",
+    "job_title": "Group Head of Digital",
+    "linkedin_url": "https://www.linkedin.com/in/adrianspragg",
+    "email": "a.spragg@laingorourke.com",
+    "email_status": "PATTERN_CONFIRMED",
+    "research_signals": [
+      "Leads digital strategy implementation across off-site manufacturing and civil engineering operations."
+    ],
+    "research_sources": [
+      "https://www.laingorourke.com/news/digital-engineering-leadership",
+      "https://www.constructionmanagement.co.uk/laing-orourke-digital-strategy"
+    ],
+    "evidence_levels": {
+      "company_size": "ESTIMATED",
+      "signal": "VERIFIED",
+      "pain_point": "INFERRED"
+    },
+    "decision_maker_reason": "Selected Business Improvement / Operations Director for mid-market private contractor (direct software budget authority & fast procurement)."
+  },
+  {
+    "company_name": "Morgan Sindall Group plc",
+    "company_domain": "morgansindall.com",
+    "company_location": "UK",
+    "industry": "Commercial Construction & Fit-Out",
+    "company_size": "7,500+ employees",
+    "revenue": "£4.1B",
+    "construction_type": "Commercial & Fit-Out Main Contractor",
+    "business_model": "Main Contractor",
+    "contact_name": "Lee Ramsey",
+    "job_title": "Design Management & BIM Director (Morgan Sindall Construction)",
+    "linkedin_url": "https://www.linkedin.com/in/leeramsey",
+    "email": "l.ramsey@morgansindall.com",
+    "email_status": "PATTERN_CONFIRMED",
+    "research_signals": [
+      "NO_STRONG_SIGNAL"
+    ],
+    "research_sources": [
+      "https://www.morgansindallconstruction.com/news/bim-leadership-lee-ramsey"
+    ],
+    "evidence_levels": {
+      "company_size": "VERIFIED",
+      "signal": "UNKNOWN",
+      "pain_point": "INFERRED"
+    },
+    "decision_maker_reason": "Selected senior digital engineering / operational director matching company scale."
+  }
+]

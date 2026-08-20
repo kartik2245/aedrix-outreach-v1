@@ -1,0 +1,152 @@
+{
+  "icp_version": "1.0.0",
+  "target_geography": {
+    "primary_country": "United Kingdom",
+    "country_codes": ["UK", "GB", "GBR"],
+    "allowed_country_keywords": [
+      "UK",
+      "UNITED KINGDOM",
+      "ENGLAND",
+      "SCOTLAND",
+      "WALES",
+      "NORTHERN IRELAND",
+      "GREAT BRITAIN"
+    ],
+    "require_uk_operating": true
+  },
+  "target_industries": [
+    "Construction",
+    "Commercial Construction",
+    "Industrial Construction",
+    "Infrastructure Services",
+    "Civil Engineering",
+    "Regional Building",
+    "Main Contractor",
+    "Building Contractor",
+    "Engineering & Construction"
+  ],
+  "allowed_industry_keywords": [
+    "construction",
+    "contractor",
+    "building",
+    "civil engineering",
+    "infrastructure",
+    "commercial build",
+    "industrial build",
+    "engineering"
+  ],
+  "disallowed_industry_keywords": [
+    "pure software",
+    "retail only",
+    "hospitality only",
+    "consumer goods",
+    "healthcare provider"
+  ],
+  "size_thresholds": {
+    "min_employee_count": 50,
+    "min_revenue_gbp_millions": 10.0,
+    "evaluation_mode": "OR",
+    "description": "Must have at least 50 employees OR at least £10M annual revenue."
+  },
+  "business_models": {
+    "target_models": [
+      "Main Contractor",
+      "Tier-1 Contractor",
+      "Tier-2 Contractor",
+      "Specialist Subcontractor",
+      "Civil Infrastructure Provider",
+      "Design and Build Contractor"
+    ],
+    "complexity_signals": [
+      "multi-site operations",
+      "subcontractor management",
+      "document versioning",
+      "workforce tracking",
+      "commercial & financial risk management"
+    ]
+  },
+  "target_personas": {
+    "priority_titles": [
+      "Chief Information Officer",
+      "CIO",
+      "Chief Technology Officer",
+      "CTO",
+      "Chief Digital Officer",
+      "CDO",
+      "Digital Director",
+      "Head of Digital",
+      "IT Director",
+      "Head of IT",
+      "Business Improvement Director",
+      "Head of Business Improvement",
+      "BIM Director",
+      "Head of BIM",
+      "Digital Construction Director",
+      "Head of Digital Construction",
+      "Transformation Director",
+      "Head of Transformation",
+      "Operations Director",
+      "Director of Operations",
+      "Chief Operating Officer",
+      "COO"
+    ],
+    "title_keywords": [
+      "cio",
+      "cto",
+      "cdo",
+      "digital director",
+      "head of digital",
+      "it director",
+      "business improvement director",
+      "bim director",
+      "digital construction",
+      "transformation director",
+      "operations director",
+      "coo"
+    ]
+  },
+  "hard_disqualification_rules": [
+    {
+      "code": "OUTSIDE_UK",
+      "description": "Headquarters or primary operations are outside the United Kingdom.",
+      "field": "country"
+    },
+    {
+      "code": "NON_CONSTRUCTION",
+      "description": "Organization operates in a non-construction / out-of-scope industry.",
+      "field": "industry"
+    },
+    {
+      "code": "UNDER_SIZE_THRESHOLD",
+      "description": "Company has fewer than 50 employees AND revenue under £10M.",
+      "field": "company_size"
+    },
+    {
+      "code": "OUT_OF_SCOPE_BUSINESS_MODEL",
+      "description": "Business model has no project, document, workforce, or commercial complexity relevant to Aedrix.",
+      "field": "business_model"
+    }
+  ],
+  "campaign_exclusion_rules": [
+    {
+      "code": "ACTIVE_CRM_DEAL",
+      "description": "Account currently has an active CRM deal or is an existing client.",
+      "fields": ["is_active_crm_deal", "is_existing_client"]
+    },
+    {
+      "code": "GLOBAL_OPT_OUT",
+      "description": "Contact or domain is listed on global suppression / opt-out list.",
+      "fields": ["is_global_suppressed", "is_opted_out"]
+    },
+    {
+      "code": "CONTACTED_WITHIN_60_DAYS",
+      "description": "Contacted within the previous 60 days in another outreach campaign.",
+      "fields": ["contacted_within_60_days"]
+    },
+    {
+      "code": "INVALID_BOUNCED_EMAIL",
+      "description": "Email address is marked INVALID_BOUNCED or known hard bounce.",
+      "fields": ["is_hard_bounce", "email_invalid", "email_status"]
+    }
+  ]
+}

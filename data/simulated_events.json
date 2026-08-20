@@ -1,0 +1,49 @@
+[
+  {
+    "event_id": "evt_open_001",
+    "event_type": "EMAIL_OPENED",
+    "timestamp": "2026-08-12T13:00:00Z",
+    "campaign_id": 123456,
+    "lead_email": "j.foster@bandk.co.uk",
+    "details": {
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Apple-WebKit/537.36",
+      "ip_address": "82.165.197.1",
+      "open_count": 1
+    }
+  },
+  {
+    "event_id": "evt_reply_pos_002",
+    "event_type": "EMAIL_REPLIED",
+    "timestamp": "2026-08-12T14:15:00Z",
+    "campaign_id": 123456,
+    "lead_email": "c.bell@kier.co.uk",
+    "details": {
+      "subject": "Re: Digital by Default & Pre-construction Document Control",
+      "reply_text": "Thanks for reaching out. We are currently evaluating pre-construction tools for our regional building units. Do you have a demo slot open next Tuesday at 2 PM GMT?",
+      "from_email": "c.bell@kier.co.uk"
+    }
+  },
+  {
+    "event_id": "evt_bounce_003",
+    "event_type": "EMAIL_BOUNCED",
+    "timestamp": "2026-08-12T12:05:00Z",
+    "campaign_id": 123456,
+    "lead_email": "a.spragg@laingorourke.com",
+    "details": {
+      "bounce_code": 550,
+      "bounce_type": "HARD_BOUNCE",
+      "diagnostic_message": "5.1.1 User unknown in virtual mailbox table"
+    }
+  },
+  {
+    "event_id": "evt_unsub_004",
+    "event_type": "EMAIL_UNSUBSCRIBED",
+    "timestamp": "2026-08-12T12:10:00Z",
+    "campaign_id": 123456,
+    "lead_email": "l.ramsey@morgansindall.com",
+    "details": {
+      "unsubscribe_method": "LIST_UNSUBSCRIBE_HEADER",
+      "user_ip": "185.125.190.2"
+    }
+  }
+]

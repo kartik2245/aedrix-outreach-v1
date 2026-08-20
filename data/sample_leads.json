@@ -1,0 +1,92 @@
+[
+  {
+    "company_name": "Bowmer & Kirkland (B&K)",
+    "company_domain": "bandk.co.uk",
+    "contact_name": "John Foster",
+    "job_title": "Business Improvement Director",
+    "email": "j.foster@bandk.co.uk",
+    "linkedin_url": "https://www.linkedin.com/in/johnfosterbk",
+    "company_size": "1,500+ employees",
+    "industry": "Commercial, Educational & Industrial Construction",
+    "personalization_note": "Congratulations on leading Bowmer & Kirkland's digital transformation initiative as Business Improvement Director. Given B&K's expansion of its digital construction team, I thought you'd be interested in how Aedrix connects pre-construction document control directly with site manpower tracking.",
+    "research_sources": [
+      "https://www.bandk.co.uk/news/john-foster-appointment-2025",
+      "https://wearenima.im/digital-construction-team-expansion"
+    ],
+    "ICP_score": 90,
+    "pain_point": "Bridging custom internal compliance tools (DigitALL) with pre-construction financial and manpower tracking across multi-regional commercial sites.",
+    "relevant_signal": "Appointed Business Improvement Director in October 2025 to lead digital transformation across UK regions; expanded digital construction team to 12 members."
+  },
+  {
+    "company_name": "Kier Group plc",
+    "company_domain": "kier.co.uk",
+    "contact_name": "Colin Bell",
+    "job_title": "Digital Director (Kier Construction)",
+    "email": "c.bell@kier.co.uk",
+    "linkedin_url": "https://www.linkedin.com/in/colinbellkier",
+    "company_size": "10,000+ employees",
+    "industry": "Infrastructure Services & Regional Building",
+    "personalization_note": "Saw Kier's active drive toward a 'Digital by Default' standard across regional construction under your digital leadership. With Ron Chambers recently stepping in as IT Director, Aedrix offers a ready-to-deploy cloud layer for unifying pre-construction document control and regional manpower tracking.",
+    "research_sources": [
+      "https://www.kier.co.uk/media/digital-by-default-strategy",
+      "https://www.kier.co.uk/news/2026-leadership-appointments"
+    ],
+    "ICP_score": 89,
+    "pain_point": "Standardizing regional pre-construction document control and audit compliance for public sector building frameworks.",
+    "relevant_signal": "Operates an official 'Digital by Default' strategy; restructured digital and data leadership in 2026 under Group COO Louisa Finlay."
+  },
+  {
+    "company_name": "Balfour Beatty plc",
+    "company_domain": "balfourbeatty.com",
+    "contact_name": "Jon Ozanne",
+    "job_title": "Chief Information Officer (CIO)",
+    "email": "j.ozanne@balfourbeatty.com",
+    "linkedin_url": "https://www.linkedin.com/in/jonozanne",
+    "company_size": "26,000 global (~12,000+ UK)",
+    "industry": "Major Infrastructure, Civil Engineering & Energy",
+    "personalization_note": "Congratulations on your promotion to Group CIO to lead Balfour Beatty's digital delivery engine and AI strategy. I thought you'd be interested in how Aedrix unifies pre-construction document control with real-time site manpower tracking for major civil engineering projects.",
+    "research_sources": [
+      "https://www.balfourbeatty.com/news/jon-ozanne-promoted-cio-2024",
+      "https://www.bmc.com/blogs/balfour-beatty-digital-transformation"
+    ],
+    "ICP_score": 86,
+    "pain_point": "Managing thousands of subcontractor document submissions and version control across multi-billion pound joint-venture infrastructure projects.",
+    "relevant_signal": "Promoted to Group CIO in September 2024 with a public mandate to turn IT into a digital delivery engine for AI and project data integration."
+  },
+  {
+    "company_name": "Laing O'Rourke",
+    "company_domain": "laingorourke.com",
+    "contact_name": "Adrian Spragg",
+    "job_title": "Group Head of Digital",
+    "email": "a.spragg@laingorourke.com",
+    "linkedin_url": "https://www.linkedin.com/in/adrianspragg",
+    "company_size": "13,000+ employees",
+    "industry": "Advanced Digital Construction & Modular Infrastructure",
+    "personalization_note": "Laing O'Rourke's pioneering work in DfMA and digital engineering sets the industry benchmark. Given your role leading digital transformation under Andrew Wolstenholme, I'd value sharing how Aedrix synchronizes site manpower tracking with pre-construction resource planning.",
+    "research_sources": [
+      "https://www.laingorourke.com/news/digital-engineering-leadership",
+      "https://www.constructionmanagement.co.uk/laing-orourke-digital-strategy"
+    ],
+    "ICP_score": 79,
+    "pain_point": "Synchronizing factory production schedules for off-site modular components with dynamic jobsite installation manpower.",
+    "relevant_signal": "Leads digital strategy implementation across off-site manufacturing and civil engineering operations."
+  },
+  {
+    "company_name": "Morgan Sindall Group plc",
+    "company_domain": "morgansindall.com",
+    "contact_name": "Lee Ramsey",
+    "job_title": "Design Management & BIM Director (Morgan Sindall Construction)",
+    "email": "l.ramsey@morgansindall.com",
+    "linkedin_url": "https://www.linkedin.com/in/leeramsey",
+    "company_size": "7,500+ employees",
+    "industry": "Commercial Construction, Fit-Out & Regeneration",
+    "personalization_note": "Saw your leadership in advancing digital information management and BIM protocols for Morgan Sindall Construction. Given your focus on design management efficiency, I thought you'd be interested in how Aedrix streamlines pre-construction document control for regional project teams.",
+    "research_sources": [
+      "https://www.morgansindallconstruction.com/news/bim-leadership-lee-ramsey",
+      "https://www.constructionmanagement.co.uk/morgan-sindall-digital-twin"
+    ],
+    "ICP_score": 73,
+    "pain_point": "Document control fragmentation across autonomous divisions (fit-out vs. regional construction vs. infrastructure).",
+    "relevant_signal": "Leads BIM and digital information management across regional building sites."
+  }
+]
