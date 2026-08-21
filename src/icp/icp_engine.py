@@ -156,9 +156,14 @@ class ICPEngine:
         if any(dkw in combined_ind for dkw in disallowed_keywords):
             return True, "Non-construction sector (Out of scope business model)", "NON_CONSTRUCTION"
 
-        allowed_keywords = self.config.get("allowed_industry_keywords", ["construction", "contractor", "building", "infrastructure", "civil engineering", "engineering"])
-        if combined_ind and not any(akw in combined_ind for akw in allowed_keywords):
-            return True, "Non-construction sector (Out of scope business model)", "NON_CONSTRUCTION"
+        # Only apply the allowed-keyword backstop when is_construction_sector is NOT explicitly True.
+        # If the adapter (or AI Ark) explicitly flags is_construction_sector=True, respect that judgement
+        # and skip the keyword list check (AI Ark often returns non-standard SIC labels like 'Machinery'
+        # for construction-adjacent firms).
+        if is_const_flag is not True:
+            allowed_keywords = self.config.get("allowed_industry_keywords", ["construction", "contractor", "building", "infrastructure", "civil engineering", "engineering"])
+            if combined_ind and not any(akw in combined_ind for akw in allowed_keywords):
+                return True, "Non-construction sector (Out of scope business model)", "NON_CONSTRUCTION"
 
         # Size threshold check
         emp_count = self._parse_employee_count(lead)

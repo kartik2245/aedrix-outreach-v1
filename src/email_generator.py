@@ -24,11 +24,13 @@ from src.personalization.personalization_qa import PersonalizationQA
 class EmailGenerator:
     def __init__(
         self,
+        llm_client: Optional[Any] = None,
         claude_client: Optional[Any] = None,
         voc_engine: Optional[VoCEngine] = None,
         qa_engine: Optional[PersonalizationQA] = None,
     ):
-        self.claude_client = claude_client
+        self.llm_client = llm_client or claude_client
+        self.claude_client = self.llm_client
         self.voc_engine = voc_engine or VoCEngine()
         self.qa_engine = qa_engine or PersonalizationQA()
 
@@ -81,10 +83,12 @@ class EmailGenerator:
         lead_intel: LeadIntelligenceOutput,
         voc_context: Optional[VoCContext] = None,
     ) -> EmailGenerationResult:
-        """Generates Email 1 from fixed templates."""
+        """Generates Email 1 using active LLM provider or fixed template fallback."""
+        if self.llm_client and hasattr(self.llm_client, "generate_email_1"):
+            return self.llm_client.generate_email_1(lead_intel, voc_context)
+
         track = lead_intel.role_track
         if track not in TEMPLATES:
-            # Fallback to a placeholder/generic
             track = "R2"
 
         variant = self.get_subject_variant(lead_intel.email)
@@ -110,7 +114,10 @@ class EmailGenerator:
         email_1: EmailGenerationResult,
         voc_context: Optional[VoCContext] = None,
     ) -> EmailGenerationResult:
-        """Generates Follow-up A (same thread, no new subject)."""
+        """Generates Follow-up A using active LLM provider or fixed template fallback."""
+        if self.llm_client and hasattr(self.llm_client, "generate_followup_a"):
+            return self.llm_client.generate_followup_a(lead_intel, email_1, voc_context)
+
         track = lead_intel.role_track
         if track not in TEMPLATES:
             track = "R2"
@@ -134,18 +141,16 @@ class EmailGenerator:
         lead_intel: LeadIntelligenceOutput,
         voc_context: Optional[VoCContext] = None,
     ) -> EmailGenerationResult:
-        """Generates Follow-up B (unopened branch, new subject). Supports HRB variant."""
+        """Generates Follow-up B using active LLM provider or fixed template fallback."""
+        if self.llm_client and hasattr(self.llm_client, "generate_followup_b"):
+            return self.llm_client.generate_followup_b(lead_intel, voc_context)
+
         track = lead_intel.role_track
         if track not in TEMPLATES:
             track = "R2"
 
-        # Check if lead is flagged for HRB (Building Safety Act / golden thread variant)
-        # S1/S4 companies doing residential or higher-risk building work
-        # For R2 and R5, check if the lead context indicates HRB work
-        # We can pass an hrb flag or detect from job title / tags/ context
         is_hrb = False
         if track in ("R2", "R5"):
-            # Check context fields defensively
             ctx = lead_intel.relevant_signal or ""
             company_name = lead_intel.company_name.lower()
             industry = lead_intel.industry.lower() if lead_intel.industry else ""

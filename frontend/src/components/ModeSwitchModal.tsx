@@ -112,7 +112,7 @@ export const ModeSwitchModal: React.FC<ModeSwitchModalProps> = ({
                   Safety Warnings for Production Mode:
                 </div>
                 <ul style={{ margin: 0, paddingLeft: '1.25rem', color: '#cbd5e1', fontSize: '0.825rem', lineHeight: '1.5' }}>
-                  <li>Real external services (Smartlead, Deepline, Claude) may become accessible if API keys are configured.</li>
+                  <li>Real external services (Smartlead, Deepline, AI Outreach Engine) may become accessible if API keys are configured.</li>
                   <li><strong>Zero emails will be sent automatically.</strong> (<code>SEND_EMAILS=false</code> remains default).</li>
                   <li><strong>Human approval is still required</strong> for every campaign ICP and email draft.</li>
                   <li>Production database operations are committed directly to Supabase PostgreSQL.</li>

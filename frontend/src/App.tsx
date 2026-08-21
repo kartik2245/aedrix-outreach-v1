@@ -52,19 +52,19 @@ export const App: React.FC = () => {
       case 'dashboard':
         return 'Outreach Operations Dashboard';
       case 'leads':
-        return 'Contractor Leads Directory';
+        return 'Leads Directory';
       case 'icp-builder':
-        return 'Dynamic ICP Designer & Lead Discovery';
+        return 'ICP Builder & Lead Discovery';
       case 'approvals':
-        return 'Human Approval & Safety Gate';
+        return 'Email Approvals';
       case 'campaign':
-        return 'Outreach Campaign Flow & State Machine';
+        return 'Outreach Campaigns';
       case 'staging':
-        return 'Smartlead Payload Staging';
+        return 'Smartlead Delivery Staging';
       case 'system':
-        return 'System & Safety Verification';
+        return 'System Settings';
       default:
-        return 'Aedrix Outreach';
+        return 'Aedrix';
     }
   };
 

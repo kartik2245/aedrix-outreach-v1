@@ -36,20 +36,25 @@ from src.models import (
 )
 
 
+from src.integrations.bedrock_client import BedrockClient
+
+
 class DeeplineDiscoveryRunner:
     def __init__(
         self,
         deepline_client: Optional[DeeplineClient] = None,
         approval_engine: Optional[ApprovalEngine] = None,
         icp_approval_engine: Optional[ICPApprovalEngine] = None,
-        claude_client: Optional[ClaudeClient] = None,
+        llm_client: Optional[Any] = None,
+        claude_client: Optional[Any] = None,
         batch_size: int = 25,
     ):
         load_env_file_if_present()
         self.deepline_client = deepline_client or DeeplineClient()
         self.approval_engine = approval_engine or ApprovalEngine()
         self.icp_approval_engine = icp_approval_engine or ICPApprovalEngine()
-        self.claude_client = claude_client or ClaudeClient()
+        self.llm_client = llm_client or claude_client or BedrockClient()
+        self.claude_client = self.llm_client
         self.batch_size = batch_size
         self.voc_engine = VoCEngine()
         self.qa_engine = PersonalizationQA()
@@ -207,11 +212,27 @@ class DeeplineDiscoveryRunner:
         is_demo = ModeService.get_instance().is_demo()
         current_mode = ModeService.get_instance().get_mode().value
 
+        # Ensure Campaign and ICP records exist in PostgreSQL before any lead inserts.
+        # leads.campaign_id and leads.icp_id are FK-constrained, so the parent rows MUST
+        # be committed before any Lead row is written.
+        # ICPRepository.enroll_icp() idempotently upserts: Campaign -> ICP -> ICPVersion -> ICPApproval.
+        from src.database.connection import is_database_enabled, get_db_session
+        if is_database_enabled():
+            try:
+                from src.database.repositories.icp_repository import ICPRepository
+                with get_db_session() as session:
+                    icp_repo = ICPRepository(session)
+                    icp_repo.enroll_icp(icp, environment=current_mode, source="CLAUDE_GENERATED")
+                    # Mark as approved since the in-memory engine already approved it
+                    icp_repo.approve_icp(icp.id, reviewer="SYSTEM_RUNNER")
+            except Exception as icp_db_err:
+                print(f"Notice: ICP DB upsert failed (leads FK will fail): {icp_db_err}")
+
         for i, lead_intel in enumerate(qualified_leads):
             voc = self.voc_engine.map_lead_voc(lead_intel)
-            e1 = self.claude_client.generate_email_1(lead_intel, voc)
-            fa = self.claude_client.generate_followup_a(lead_intel, e1, voc)
-            fb = self.claude_client.generate_followup_b(lead_intel, voc)
+            e1 = self.llm_client.generate_email_1(lead_intel, voc)
+            fa = self.llm_client.generate_followup_a(lead_intel, e1, voc)
+            fb = self.llm_client.generate_followup_b(lead_intel, voc)
 
             qa_res = self.qa_engine.validate_lead_drafts(
                 lead_intel=lead_intel,
@@ -258,7 +279,6 @@ class DeeplineDiscoveryRunner:
             )
 
             # Persist to database if enabled
-            from src.database.connection import is_database_enabled, get_db_session
             from src.database.models import Lead, LeadEvidence, LeadResearch, VoCContext, EmailDraft, EmailApproval
 
             if is_database_enabled():

@@ -70,8 +70,15 @@ class ModeService:
         if self._runtime_mode_override is not None:
             return self._runtime_mode_override
         load_env_file_if_present()
-        raw_mode = os.getenv("APP_MODE", "DEMO").strip().upper()
+        raw_mode = os.getenv("APP_MODE", "").strip().upper()
         if raw_mode in ("PRODUCTION", "PROD"):
+            return AppMode.PRODUCTION
+        elif raw_mode in ("DEMO", "DEV"):
+            return AppMode.DEMO
+
+        # If APP_MODE is not explicitly set, infer mode from DRY_RUN setting
+        dry_run = os.getenv("DRY_RUN", "true").lower() in ("true", "1", "yes")
+        if not dry_run:
             return AppMode.PRODUCTION
         return AppMode.DEMO
 
@@ -99,6 +106,7 @@ class ModeService:
         anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
         smartlead_key = os.getenv("SMARTLEAD_API_KEY", "").strip()
         deepline_key = os.getenv("DEEPLINE_API_KEY", "").strip()
+        llm_provider = os.getenv("LLM_PROVIDER", "").strip().lower()
 
         env_dry_run = os.getenv("DRY_RUN", "true").lower() in ("true", "1", "yes")
         env_send_emails = os.getenv("SEND_EMAILS", "false").lower() in ("true", "1", "yes")
@@ -115,13 +123,14 @@ class ModeService:
             deepline_live = False
             safety_summary = "DEMO SIMULATION: 0 real emails, 0 paid API credits consumed."
         else:
-            claude_mode = "LIVE_API" if (anthropic_key and not env_dry_run) else "OFFLINE_FALLBACK"
+            has_llm = bool(anthropic_key or os.getenv("AWS_BEARER_TOKEN_BEDROCK") or llm_provider == "aws_bedrock")
+            claude_mode = "LIVE_API" if (has_llm and not env_dry_run) else "OFFLINE_FALLBACK"
             deepline_mode = "LIVE_API" if (deepline_key and env_deepline_live) else "DRY_RUN_DISCOVERY"
-            smartlead_mode = "LIVE_API" if (smartlead_key and env_smartlead_live) else "STAGING_ONLY"
+            smartlead_mode = "LIVE_API" if (smartlead_key and env_smartlead_live) else "DISABLED (EMAIL DELIVERY OFF)"
             real_emails_enabled = (env_send_emails and env_prod_confirm)
             smartlead_live = env_smartlead_live
             deepline_live = env_deepline_live
-            safety_summary = "PRODUCTION MODE: Live database active, human approval gates strictly enforced."
+            safety_summary = "PRODUCTION MODE: Live database & lead discovery active, human approval gates strictly enforced. Email delivery is disabled."
 
         return ModeConfigResponse(
             mode=mode.value,

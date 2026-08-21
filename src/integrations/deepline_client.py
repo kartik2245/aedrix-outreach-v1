@@ -37,8 +37,9 @@ class DeeplineClient:
     ):
         load_env_file_if_present()
 
-        self.api_key = api_key or os.getenv("DEEPLINE_API_KEY", "")
-        self.base_url = (base_url or os.getenv("DEEPLINE_BASE_URL", "https://api.deepline.ai/v1")).rstrip("/")
+        self.api_key = api_key or os.getenv("DEEPLINE_API_KEY", "") or os.getenv("DEEPLINE_SESSION_TOKEN", "")
+        self.base_url = (base_url or os.getenv("DEEPLINE_BASE_URL", "https://code.deepline.com/api/v2")).rstrip("/")
+        self.v2_tool = os.getenv("DEEPLINE_V2_TOOL", "ai_ark_people_search")
         
         env_live = os.getenv("DEEPLINE_LIVE", "false").lower() in ("true", "1", "yes")
         self.live_mode = live_mode if live_mode is not None else env_live
@@ -54,9 +55,104 @@ class DeeplineClient:
             return "********"
         return f"{'*' * (len(key) - 4)}{key[-4:]}"
 
+    def parse_employee_range(self, company_size_str: Optional[str]) -> Dict[str, Any]:
+        """
+        Parses AEDRIX company_size string (e.g. '50+ employees', '50-500 employees', '50+ employees or £10M+ revenue')
+        into Deepline's employeeSize RANGE structure. Defaults to start=50, end=10000.
+        """
+        start = 50
+        end = 10000
+
+        if company_size_str and str(company_size_str).strip():
+            import re
+            s = str(company_size_str).strip()
+            # Strip revenue clause if present (e.g. 'or £10M+ revenue', 'or 10M revenue')
+            s_no_rev = re.sub(r'(?i)(?:or\s*)?[£$€]?\d+(?:\.\d+)?\s*[kmb]?\+?\s*revenue.*', '', s).strip()
+
+            # Check for range pattern: "50-500", "50 to 500"
+            range_match = re.search(r'(\d+)\s*(?:-|to)\s*(\d+)', s_no_rev, re.IGNORECASE)
+            if range_match:
+                start = int(range_match.group(1))
+                end = int(range_match.group(2))
+            else:
+                emp_match = re.search(r'(\d+)', s_no_rev)
+                if emp_match:
+                    start = int(emp_match.group(1))
+                    end = 10000
+
+        return {
+            "type": "RANGE",
+            "range": [
+                {
+                    "start": start,
+                    "end": end
+                }
+            ]
+        }
+
+    def build_v2_payload(self, request: DeeplineDiscoveryRequest) -> Dict[str, Any]:
+        """Maps AEDRIX ICP Discovery Request into official Deepline V2 ai_ark_people_search tool payload wrapper."""
+        raw_geo = request.geography if request.geography else ["United Kingdom"]
+        country_list = []
+        for g in raw_geo:
+            g_upper = g.upper()
+            if g_upper in ("UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB", "GBR"):
+                if "United Kingdom" not in country_list:
+                    country_list.append("United Kingdom")
+            elif g not in country_list:
+                country_list.append(g)
+        if not country_list:
+            country_list = ["United Kingdom"]
+
+        industry_list = request.industries if request.industries else ["Commercial Construction"]
+        persona_list = request.personas if request.personas else ["Director"]
+
+        return {
+            "payload": {
+                "page": 0,
+                "size": min(request.requested_lead_count, 100),
+                "account": {
+                    "location": {
+                        "any": {
+                            "include": country_list
+                        }
+                    },
+                    "employeeSize": self.parse_employee_range(request.company_size),
+                    "keyword": {
+                        "any": {
+                            "include": {
+                                "content": industry_list,
+                                "sources": [
+                                    {
+                                        "mode": "SMART",
+                                        "source": "INDUSTRY"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "contact": {
+                    "keyword": {
+                        "any": {
+                            "include": {
+                                "content": persona_list,
+                                "sources": [
+                                    {
+                                        "mode": "SMART",
+                                        "source": "HEADLINE"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
     def discover_leads(self, request: DeeplineDiscoveryRequest) -> Dict[str, Any]:
         """
-        Executes lead discovery against Deepline.
+        Executes lead discovery against Deepline V2.
         In dry-run mode or when DEEPLINE_LIVE=false, returns high-fidelity simulated contractor leads.
         """
         if not self.live_mode:
@@ -71,12 +167,21 @@ class DeeplineClient:
                 "Live discovery blocked: DEEPLINE_RUN_CONFIRMATION must be set to 'true' to execute live discovery."
             )
 
-        endpoint = f"{self.base_url}/leads/discover"
-        payload_bytes = json.dumps(request.model_dump()).encode("utf-8")
+        if "/v1" in self.base_url:
+            endpoint = f"{self.base_url}/leads/discover"
+            v2_payload = request.model_dump()
+        else:
+            endpoint = f"{self.base_url}/integrations/{self.v2_tool}/execute"
+            v2_payload = self.build_v2_payload(request)
+
+        payload_bytes = json.dumps(v2_payload).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
-            "User-Agent": "Aedrix-ColdOutreach-DeeplineClient/1.0",
+            "User-Agent": "Aedrix-ColdOutreach-DeeplineClient/2.0",
+            "x-deepline-execute-response-contract": "v2-tool-response",
+            "x-deepline-tool-error-schema": "1",
+            "x-deepline-execute-response-intent": "raw",
         }
 
         req = urllib.request.Request(endpoint, data=payload_bytes, headers=headers, method="POST")
@@ -84,11 +189,55 @@ class DeeplineClient:
         try:
             with urllib.request.urlopen(req, timeout=30.0) as response:
                 body = response.read().decode("utf-8")
-                return json.loads(body)
+                data = json.loads(body)
+                
+                # Extract leads array from V2 tool output or legacy wrapper
+                leads_extracted = []
+                if isinstance(data, dict):
+                    if "leads" in data and isinstance(data["leads"], list):
+                        leads_extracted = data["leads"]
+                    elif "toolResponse" in data and isinstance(data["toolResponse"], dict):
+                        raw = data["toolResponse"].get("raw", {})
+                        if isinstance(raw, dict) and "content" in raw and isinstance(raw["content"], list):
+                            leads_extracted = raw["content"]
+                        elif "content" in data["toolResponse"] and isinstance(data["toolResponse"]["content"], list):
+                            leads_extracted = data["toolResponse"]["content"]
+                    elif "toolExecutionResult" in data:
+                        extracted = data.get("toolExecutionResult", {}).get("extractedLists", [])
+                        if isinstance(extracted, list) and extracted:
+                            leads_extracted = extracted[0].get("items", [])
+                    elif "result" in data and isinstance(data["result"], dict):
+                        if "content" in data["result"] and isinstance(data["result"]["content"], list):
+                            leads_extracted = data["result"]["content"]
+                    elif "content" in data and isinstance(data["content"], list):
+                        leads_extracted = data["content"]
+
+                return {
+                    "status": "SUCCESS",
+                    "mode": "LIVE_API_V2",
+                    "icp_id": request.icp_id,
+                    "campaign_id": request.campaign_id,
+                    "requested_count": request.requested_lead_count,
+                    "discovered_count": len(leads_extracted),
+                    "leads": leads_extracted,
+                    "raw_response": data,
+                    "api_calls_made": 1,
+                    "credits_consumed": round(len(leads_extracted) * 0.07, 3),
+                }
         except urllib.error.HTTPError as e:
+            error_body = ""
+            try:
+                error_body = e.read().decode("utf-8")
+            except Exception:
+                pass
+
             if e.code in (401, 403):
-                raise DeeplineAuthError(f"Deepline Authentication Failed: HTTP {e.code}")
-            raise DeeplineAPIError(f"Deepline API Error: HTTP {e.code} - {e.reason}")
+                raise DeeplineAuthError(f"Deepline Authentication Failed: HTTP {e.code} - {error_body}")
+
+            error_msg = f"Deepline API Error: HTTP {e.code} - {e.reason}"
+            if error_body:
+                error_msg += f" - Response Body: {error_body}"
+            raise DeeplineAPIError(error_msg)
         except Exception as e:
             raise DeeplineAPIError(f"Deepline Network Error: {str(e)}")
 

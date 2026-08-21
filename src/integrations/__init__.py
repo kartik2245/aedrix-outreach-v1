@@ -1,6 +1,7 @@
 """
 integrations package for Aedrix Cold Outreach System.
 """
+from src.integrations.bedrock_client import BedrockClient
 from src.integrations.claude_client import ClaudeClient
 from src.integrations.smartlead_client import (
     SmartleadClient,
@@ -16,6 +17,7 @@ from src.integrations.deepline_client import (
 )
 
 __all__ = [
+    "BedrockClient",
     "ClaudeClient",
     "SmartleadClient",
     "SmartleadError",

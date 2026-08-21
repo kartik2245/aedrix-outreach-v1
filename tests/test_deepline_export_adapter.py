@@ -135,3 +135,28 @@ def test_ingestion_and_export_pilot_leads(adapter):
     results = adapter.adapt(export_path, buffer_path)
     assert len(results) == 5
     assert os.path.exists(buffer_path)
+
+
+def test_deepline_v2_field_adaptation(adapter):
+    """Verify Deepline V2 field aliases (company, domain, title, linkedin, first_name, last_name) adapt cleanly."""
+    v2_raw = {
+        "company": "Kier Group plc",
+        "domain": "kier.co.uk",
+        "location": "United Kingdom",
+        "first_name": "Colin",
+        "last_name": "Bell",
+        "title": "Digital Director",
+        "email": "c.bell@kier.co.uk",
+        "linkedin": "https://linkedin.com/in/colin-bell",
+        "size": "11,000 employees"
+    }
+    adapted = adapter.adapt_record(v2_raw)
+    assert adapted["company_name"] == "Kier Group plc"
+    assert adapted["company_domain"] == "kier.co.uk"
+    assert adapted["contact_name"] == "Colin Bell"
+    assert adapted["job_title"] == "Digital Director"
+    assert adapted["linkedin_url"] == "https://linkedin.com/in/colin-bell"
+    assert adapted["employee_count"] == 11000
+    assert adapted["company_size"] == "11,000 employees"
+    assert adapted["adapter_audit"]["is_valid"] is True
+

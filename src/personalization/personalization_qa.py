@@ -279,6 +279,22 @@ class PersonalizationQA:
         else:
             checks_passed.append("PERSONALIZATION_MATCHES_EVIDENCE")
 
+        # 16. Check for Internal System Leaks (e.g. NO_STRONG_SIGNAL, SIGNAL_VERIFIED, HARD_DISQUALIFIED)
+        forbidden_internal_terms = [
+            "NO_STRONG_SIGNAL",
+            "SIGNAL_VERIFIED",
+            "HARD_DISQUALIFIED",
+            "CAMPAIGN_EXCLUDED",
+            "INVALID_BOUNCED",
+        ]
+        for term in forbidden_internal_terms:
+            if term.lower() in all_text_lower:
+                reasons.append(f"Forbidden internal system code/label '{term}' leaked into generated email copy.")
+                checks_failed.append("NO_INTERNAL_SYSTEM_LEAKS")
+                break
+        else:
+            checks_passed.append("NO_INTERNAL_SYSTEM_LEAKS")
+
         qa_status = "PASS" if len(reasons) == 0 else "FAIL"
 
         return PersonalizationQAResult(

@@ -3,11 +3,12 @@ import {
   LayoutDashboard,
   Users,
   Sparkles,
+  Search,
   CheckSquare,
   GitBranch,
-  Send,
   ShieldCheck,
   Building2,
+  Send,
 } from 'lucide-react';
 import { DashboardStats } from '../types';
 
@@ -15,6 +16,7 @@ export type NavTab =
   | 'dashboard'
   | 'leads'
   | 'icp-builder'
+  | 'discovery'
   | 'approvals'
   | 'campaign'
   | 'staging'
@@ -38,8 +40,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Building2 size={20} />
         </div>
         <div className="logo-text">
-          <h1>Aedrix Outreach</h1>
-          <span>AI Platform Operator</span>
+          <h1>Aedrix</h1>
+          <span>AI Outreach Platform</span>
         </div>
       </div>
 
@@ -53,17 +55,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         <button
-          className={`nav-item ${activeTab === 'leads' ? 'active' : ''}`}
-          onClick={() => onSelectTab('leads')}
-        >
-          <Users size={18} />
-          <span>Leads Dossier</span>
-          {stats && stats.total_leads > 0 && (
-            <span className="nav-badge">{stats.total_leads}</span>
-          )}
-        </button>
-
-        <button
           className={`nav-item ${activeTab === 'icp-builder' ? 'active' : ''}`}
           onClick={() => onSelectTab('icp-builder')}
         >
@@ -72,11 +63,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         <button
+          className={`nav-item ${activeTab === 'discovery' ? 'active' : ''}`}
+          onClick={() => onSelectTab('icp-builder')}
+        >
+          <Search size={18} />
+          <span>Lead Discovery</span>
+        </button>
+
+        <button
+          className={`nav-item ${activeTab === 'leads' ? 'active' : ''}`}
+          onClick={() => onSelectTab('leads')}
+        >
+          <Users size={18} />
+          <span>Leads</span>
+          {stats && stats.total_leads > 0 && (
+            <span className="nav-badge">{stats.total_leads}</span>
+          )}
+        </button>
+
+        <button
           className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}
           onClick={() => onSelectTab('approvals')}
         >
           <CheckSquare size={18} />
-          <span>Approval Queue</span>
+          <span>Email Approvals</span>
           {stats && stats.pending_approvals > 0 && (
             <span
               className="nav-badge"
@@ -92,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={() => onSelectTab('campaign')}
         >
           <GitBranch size={18} />
-          <span>Campaign Flow</span>
+          <span>Campaigns</span>
         </button>
 
         <button
@@ -100,13 +110,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={() => onSelectTab('staging')}
         >
           <Send size={18} />
-          <span>Smartlead Staging</span>
-          {stats && stats.smartlead_eligible_leads > 0 && (
+          <span>Smartlead</span>
+          {stats && stats.approved_leads > 0 && (
             <span
               className="nav-badge"
               style={{ background: 'var(--success)', color: '#000', fontWeight: 700 }}
             >
-              {stats.smartlead_eligible_leads}
+              {stats.approved_leads}
             </span>
           )}
         </button>
@@ -116,7 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={() => onSelectTab('system')}
         >
           <ShieldCheck size={18} />
-          <span>System & Safety</span>
+          <span>Settings</span>
         </button>
       </nav>
 

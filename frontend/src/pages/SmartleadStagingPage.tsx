@@ -53,15 +53,28 @@ export const SmartleadStagingPage: React.FC = () => {
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <ShieldCheck size={20} color="var(--success)" />
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
-              Smartlead Staging Planner (Offline Dry-Run)
-            </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck size={20} color="var(--success)" />
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
+                Smartlead Delivery Staging & Integration Planner
+              </h3>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.74rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 700 }}>
+                Status: DISABLED
+              </span>
+              <span style={{ fontSize: '0.74rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 700 }}>
+                Mode: STAGING ONLY
+              </span>
+              <span style={{ fontSize: '0.74rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)', fontWeight: 700 }}>
+                Live Sending: OFF
+              </span>
+            </div>
           </div>
-          <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+          <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0 }}>
             This plan contains the exact payloads, custom variables, and sequences prepared for Smartlead.
-            <strong> 0 real API calls made. 0 real emails sent.</strong>
+            <strong> Live Smartlead delivery is disabled (SMARTLEAD_LIVE=false). 0 real API calls made. 0 real emails sent.</strong>
           </p>
         </div>
 

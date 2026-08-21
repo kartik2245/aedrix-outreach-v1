@@ -58,9 +58,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </h3>
           </div>
           <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0 }}>
-            {stats.safety?.dry_run || !stats.safety?.send_emails
+            {stats.safety?.dry_run
               ? 'DEMO MODE active: 0 real emails dispatched, 0 paid API credits consumed. Human approval gates are strictly enforced before staging.'
-              : 'PRODUCTION MODE active: Live database connected. Human approval is strictly required before staging.'}
+              : 'PRODUCTION MODE active: Live database & lead discovery active. Human approval is strictly required before staging. Email delivery disabled.'}
           </p>
         </div>
 
@@ -72,6 +72,51 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--success)' }}>
               {stats.safety?.real_emails_sent ?? 0}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* System Status Indicators Bar */}
+      <div
+        className="card"
+        style={{
+          background: 'rgba(15, 23, 42, 0.7)',
+          borderColor: 'rgba(255, 255, 255, 0.08)',
+          padding: '1rem 1.25rem',
+        }}
+      >
+        <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)', marginBottom: '10px' }}>
+          System Operational Status
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(30, 41, 59, 0.5)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#34d399' }} />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Database:</span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399' }}>Connected</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(30, 41, 59, 0.5)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#34d399' }} />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Lead Discovery:</span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399' }}>Ready</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(30, 41, 59, 0.5)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#34d399' }} />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>AI Outreach:</span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399' }}>Ready</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(30, 41, 59, 0.5)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#60a5fa' }} />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Approval Gate:</span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#60a5fa' }}>Active</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(30, 41, 59, 0.5)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#94a3b8' }} />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Delivery (Smartlead):</span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8' }}>Disabled</span>
           </div>
         </div>
       </div>
@@ -93,7 +138,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </span>
           </div>
           <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-            Complete deterministic simulation with Human-in-the-Loop checkpoints
+            Complete outreach automation with Human-in-the-Loop approval checkpoints
           </span>
         </div>
 
@@ -103,7 +148,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <Layers size={14} />
               <span>1. ICP Designer</span>
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Claude translates goals into validated ICP configs</div>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>AI engine translates goals into validated ICP configs</div>
           </div>
 
           <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -117,7 +162,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: '#34d399', marginBottom: '4px' }}>
               <Search size={14} />
-              <span>3. Deepline Discovery</span>
+              <span>3. Lead Discovery</span>
             </div>
             <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Account research & contractor verification</div>
           </div>
@@ -125,9 +170,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: '#a78bfa', marginBottom: '4px' }}>
               <FileText size={14} />
-              <span>4. Claude Outreach</span>
+              <span>4. AI Outreach</span>
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Zero-hallucination drafts & 10-point QA</div>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Zero-hallucination drafts & 19-point QA</div>
           </div>
 
           <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -141,42 +186,49 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: '#38bdf8', marginBottom: '4px' }}>
               <MailCheck size={14} />
-              <span>6. Smartlead Staging</span>
+              <span>6. Campaign Staging</span>
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Staged campaigns & 400-lead batches</div>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Staged campaigns & batch scheduling</div>
           </div>
         </div>
       </div>
 
-      {/* Primary Metrics */}
+      {/* Requested Primary Cards */}
       <div className="metrics-grid">
         <MetricCard
-          label="Total Researched Leads"
+          label="Total Leads"
           value={stats.total_leads}
-          subtext="Deepline verified UK contractor accounts"
+          subtext="Verified UK contractor accounts"
           icon={<Users size={18} />}
           color="var(--primary)"
         />
         <MetricCard
-          label="ICP Qualified Leads"
+          label="Qualified Leads"
           value={stats.qualified_leads}
           subtext={`${stats.p1_leads} P1 Strategic, ${stats.p2_leads} P2 High-Fit`}
           icon={<CheckCircle2 size={18} />}
           color="var(--success)"
         />
         <MetricCard
-          label="Pending Human Review"
+          label="Pending Approvals"
           value={stats.pending_approvals}
           subtext="Awaiting operator review before staging"
           icon={<AlertCircle size={18} />}
           color="var(--warning)"
         />
         <MetricCard
-          label="Approved / Ready"
+          label="Approved Leads"
           value={stats.approved_leads}
-          subtext={`${stats.smartlead_eligible_leads} Smartlead staging eligible`}
+          subtext="Reviewed and approved by operator"
           icon={<FileText size={18} />}
           color="var(--success)"
+        />
+        <MetricCard
+          label="Outreach Ready"
+          value={stats.smartlead_eligible_leads}
+          subtext="Staged and ready for delivery"
+          icon={<MailCheck size={18} />}
+          color="var(--accent)"
         />
       </div>
 

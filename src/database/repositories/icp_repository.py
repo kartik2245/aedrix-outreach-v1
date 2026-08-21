@@ -69,6 +69,10 @@ class ICPRepository:
             )
             self.session.add(campaign)
             self.session.flush()
+        else:
+            campaign.name = icp.name
+            campaign.objective = icp.campaign_description
+            campaign.environment = environment
 
         # 2. Upsert ICP root record
         db_icp = self.get_by_id(icp.id)
@@ -85,6 +89,8 @@ class ICPRepository:
             self.session.add(db_icp)
             self.session.flush()
         else:
+            db_icp.campaign_id = icp.campaign_id
+            db_icp.name = icp.name
             db_icp.environment = environment
             db_icp.source = source
 

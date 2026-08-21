@@ -375,7 +375,7 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
           }}
         >
           <Sparkles size={16} />
-          <span>✨ Generate with Claude</span>
+          <span>✨ Generate Outreach</span>
         </button>
 
         <button
@@ -414,7 +414,7 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
                 AI-Assisted ICP Generation
               </h3>
               <span style={{ fontSize: '0.74rem', background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
-                CLAUDE AI
+                AI OUTREACH ENGINE
               </span>
             </div>
 
@@ -586,12 +586,12 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
               {isGenerating ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  <span>Designing ICP with Claude...</span>
+                  <span>Designing ICP with AI Engine...</span>
                 </>
               ) : (
                 <>
                   <Sparkles size={16} />
-                  <span>Generate Structured ICP with Claude</span>
+                  <span>Generate Structured ICP</span>
                 </>
               )}
             </button>
@@ -992,7 +992,7 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
                       ) : (
                         <>
                           <Sparkles size={11} />
-                          <span>CLAUDE AI</span>
+                          <span>AI ENGINE</span>
                         </>
                       )}
                     </span>
@@ -1127,7 +1127,7 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Target Volume:</span>
-                    {[100, 250, 500, 1000].map((cnt) => (
+                    {[10, 50, 100, 250, 500, 1000].map((cnt) => (
                       <button
                         key={cnt}
                         className={`btn ${requestedCount === cnt ? 'btn-primary' : 'btn-outline'}`}
@@ -1168,7 +1168,7 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: '64px', color: 'var(--text-dim)' }}>
               <FileText size={32} style={{ margin: '0 auto 12px auto', opacity: 0.4 }} />
-              <p>No ICP generated yet. Choose either "Generate with Claude" or "Create Manually" to create an ICP for review.</p>
+              <p>No ICP generated yet. Choose either "Generate Outreach" or "Create Manually" to create an ICP for review.</p>
             </div>
           )}
 

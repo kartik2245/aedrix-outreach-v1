@@ -76,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  const isDemo = modeConfig ? modeConfig.demo_mode : (safety?.dry_run || !safety?.send_emails);
+  const isDemo = modeConfig ? modeConfig.demo_mode : (safety?.dry_run ?? true);
 
   return (
     <>
@@ -113,10 +113,10 @@ export const Header: React.FC<HeaderProps> = ({
                 borderColor: 'rgba(16, 185, 129, 0.3)',
                 cursor: 'pointer',
               }}
-              title="PRODUCTION MODE: Live database active with strict human approval gates. Click to manage mode."
+              title="PRODUCTION MODE: Live database active with strict human approval gates. Email delivery disabled."
             >
               <ShieldCheck size={14} />
-              <span>PRODUCTION MODE 🟢 LIVE</span>
+              <span>PRODUCTION MODE 🟢 LIVE PROCESSING — EMAIL DELIVERY DISABLED</span>
               <SlidersHorizontal size={11} style={{ opacity: 0.7, marginLeft: '2px' }} />
             </button>
           )}

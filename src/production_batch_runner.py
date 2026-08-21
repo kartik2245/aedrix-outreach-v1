@@ -49,6 +49,7 @@ from src.evidence_validator import EvidenceValidator
 from src.icp.icp_engine import ICPEngine
 from src.lead_intelligence import LeadIntelligenceEngine
 from src.personalization.voc_engine import VoCEngine
+from src.integrations.bedrock_client import BedrockClient
 from src.integrations.claude_client import ClaudeClient
 from src.personalization.personalization_qa import PersonalizationQA
 from src.email_generator import EmailGenerator
@@ -67,7 +68,8 @@ class ProductionBatchRunner:
     def __init__(
         self,
         config_path: Optional[str] = None,
-        claude_client: Optional[ClaudeClient] = None,
+        llm_client: Optional[Any] = None,
+        claude_client: Optional[Any] = None,
         approval_store: Optional[ApprovalStore] = None,
     ):
         self.adapter = DeeplineExportAdapter()
@@ -76,10 +78,11 @@ class ProductionBatchRunner:
         self.icp_engine = ICPEngine(config_path=config_path)
         self.intel_engine = LeadIntelligenceEngine()
         self.voc_engine = VoCEngine()
-        self.claude_client = claude_client or ClaudeClient()
+        self.llm_client = llm_client or claude_client or BedrockClient()
+        self.claude_client = self.llm_client
         self.qa_engine = PersonalizationQA()
         self.email_generator = EmailGenerator(
-            claude_client=self.claude_client,
+            llm_client=self.llm_client,
             voc_engine=self.voc_engine,
             qa_engine=self.qa_engine,
         )

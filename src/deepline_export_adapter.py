@@ -61,11 +61,23 @@ class DeeplineExportAdapter:
         errors: List[str] = []
         warnings: List[str] = []
 
-        comp_name_raw = raw.get("company_name")
+        comp_obj = raw.get("company") if isinstance(raw.get("company"), dict) else {}
+        comp_name_raw = (
+            raw.get("company_name")
+            or (comp_obj.get("summary", {}).get("name") if isinstance(comp_obj.get("summary"), dict) else None)
+            or comp_obj.get("name")
+            or (raw.get("company") if isinstance(raw.get("company"), str) else None)
+        )
         if not comp_name_raw or not str(comp_name_raw).strip():
             errors.append("MISSING_COMPANY_NAME: Company name is missing.")
 
-        comp_domain_raw = raw.get("company_domain")
+        comp_domain_raw = (
+            raw.get("company_domain")
+            or raw.get("domain")
+            or raw.get("website")
+            or (comp_obj.get("link", {}).get("domain") if isinstance(comp_obj.get("link"), dict) else None)
+            or comp_obj.get("domain")
+        )
         if not comp_domain_raw or not str(comp_domain_raw).strip():
             warnings.append("MISSING_COMPANY_DOMAIN: Company domain is missing.")
 
@@ -74,23 +86,49 @@ class DeeplineExportAdapter:
         company_domain = re.sub(r"^https?://", "", domain_str)
         company_domain = re.sub(r"^www\.", "", company_domain).strip()
 
-        country = str(raw.get("company_location") or raw.get("country") or "UK").strip().upper()
-        is_uk = raw.get("is_uk_operating")
+        # Resolve country: AI Ark may return location as a dict with keys like COUNTRY, DEFAULT, etc.
+        def _extract_country_str(raw_loc: Any) -> str:
+            if isinstance(raw_loc, dict):
+                return str(
+                    raw_loc.get("COUNTRY")
+                    or raw_loc.get("country")
+                    or raw_loc.get("DEFAULT")
+                    or raw_loc.get("default")
+                    or ""
+                ).strip()
+            return str(raw_loc or "").strip()
+
+        country = _extract_country_str(
+            raw.get("company_location")
+            or raw.get("country")
+            or raw.get("location")
+            or comp_obj.get("location")
+            or comp_obj.get("company_location")
+            or "UK"
+        ).upper()
+        is_uk = raw.get("is_uk_operating") if raw.get("is_uk_operating") is not None else comp_obj.get("is_uk_operating")
         if is_uk is not None:
             is_uk_operating = bool(is_uk)
         else:
-            is_uk_operating = country == "UK" or any(kw in country for kw in ["UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES"])
+            is_uk_operating = country == "UK" or any(kw in country for kw in ["UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB"])
 
-        industry = str(raw.get("industry", "Construction")).strip()
-        is_const = raw.get("is_construction_sector")
+        industry = str(raw.get("industry") or comp_obj.get("industry") or "Construction").strip()
+        is_const = raw.get("is_construction_sector") if raw.get("is_construction_sector") is not None else comp_obj.get("is_construction_sector")
         if is_const is not None:
             is_construction_sector = bool(is_const)
         else:
             is_construction_sector = "software" not in industry.lower()
 
-        company_size = str(raw.get("company_size", "UNKNOWN")).strip()
-        # New field: employee_count derived from company_size string
-        employee_count = self.parse_employee_count(company_size)
+        company_size = str(
+            raw.get("company_size")
+            or raw.get("size")
+            or comp_obj.get("company_size")
+            or comp_obj.get("size")
+            or "UNKNOWN"
+        ).strip()
+        # New field: employee_count derived from company_size string or raw employee_count
+        raw_emp = raw.get("employee_count") or raw.get("employees") or comp_obj.get("employee_count") or comp_obj.get("employees")
+        employee_count = self.parse_employee_count(raw_emp) if raw_emp is not None else self.parse_employee_count(company_size)
         evidence_levels = raw.get("evidence_levels", {})
         
         company_size_ev_raw = evidence_levels.get("company_size") if isinstance(evidence_levels, dict) else None
@@ -105,18 +143,44 @@ class DeeplineExportAdapter:
         else:
             company_size_ev = EvidenceLevel.ESTIMATED
 
-        contact_name_raw = raw.get("contact_name")
+        profile_obj = raw.get("profile") if isinstance(raw.get("profile"), dict) else {}
+        contact_name_raw = (
+            raw.get("contact_name")
+            or raw.get("full_name")
+            or profile_obj.get("full_name")
+            or profile_obj.get("name")
+        )
+        if not contact_name_raw:
+            fn = str(raw.get("first_name") or profile_obj.get("first_name") or "").strip()
+            ln = str(raw.get("last_name") or profile_obj.get("last_name") or "").strip()
+            if fn or ln:
+                contact_name_raw = f"{fn} {ln}".strip()
+
         if not contact_name_raw or not str(contact_name_raw).strip():
             warnings.append("MALFORMED_CONTACT: Contact name is missing.")
 
-        job_title_raw = raw.get("job_title")
+        job_title_raw = (
+            raw.get("job_title")
+            or raw.get("title")
+            or raw.get("headline")
+            or profile_obj.get("title")
+            or profile_obj.get("job_title")
+            or profile_obj.get("headline")
+        )
         if not job_title_raw or not str(job_title_raw).strip():
             warnings.append("MALFORMED_CONTACT: Job title is missing.")
 
         contact_name = str(contact_name_raw or "UNKNOWN_CONTACT").strip()
         job_title = str(job_title_raw or "UNKNOWN_TITLE").strip()
-        email = str(raw.get("email", "")).strip().lower()
-        linkedin_url = str(raw["linkedin_url"]).strip() if raw.get("linkedin_url") else None
+        email = str(raw.get("email") or profile_obj.get("email") or "").strip().lower()
+        link_obj = raw.get("link") if isinstance(raw.get("link"), dict) else {}
+        linkedin_raw = (
+            raw.get("linkedin_url")
+            or raw.get("linkedin")
+            or link_obj.get("linkedin")
+            or link_obj.get("url")
+        )
+        linkedin_url = str(linkedin_raw).strip() if linkedin_raw else None
 
         email_status_str = str(raw.get("email_status", EmailStatus.PATTERN_CONFIRMED.value)).strip().upper()
         try:

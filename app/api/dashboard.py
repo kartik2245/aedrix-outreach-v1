@@ -62,7 +62,7 @@ def get_dashboard_stats() -> DashboardStatsResponse:
     env_smartlead_live = False if is_demo else os.getenv("SMARTLEAD_LIVE", "false").lower() in ("true", "1", "yes")
     env_prod_confirm = False if is_demo else os.getenv("PRODUCTION_SEND_CONFIRMATION", "false").lower() in ("true", "1", "yes")
 
-    mode_display = "DEMO / DRY RUN" if is_demo else ("PRODUCTION ACTIVE" if (env_send_emails and env_prod_confirm) else "PRODUCTION (GUARDED)")
+    mode_display = "DEMO / DRY RUN" if is_demo else ("PRODUCTION ACTIVE" if (env_send_emails and env_prod_confirm) else "LIVE PROCESSING — EMAIL DELIVERY DISABLED")
 
     if is_database_enabled():
         try:
