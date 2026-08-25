@@ -5,7 +5,6 @@ ORM models, repositories, immutability guarantees, and FastAPI health endpoints.
 """
 
 import os
-os.environ["DATABASE_ENABLED"] = "true"
 import uuid
 import pytest
 from fastapi.testclient import TestClient
@@ -37,6 +36,17 @@ from src.database.repositories import (
 from src.icp.icp_models import ICPConfig, ICPStatus
 from src.approval.approval_models import ApprovalStatus
 from src.database.migrate_json_to_db import migrate_all
+
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_database_environment():
+    old_val = os.environ.get("DATABASE_ENABLED")
+    os.environ["DATABASE_ENABLED"] = "true"
+    yield
+    if old_val is not None:
+        os.environ["DATABASE_ENABLED"] = old_val
+    else:
+        os.environ.pop("DATABASE_ENABLED", None)
 
 
 @pytest.fixture(scope="module")
@@ -262,15 +272,20 @@ def test_approval_repository_gate_rules(db_session, run_id):
     assert approved.approval_status == ApprovalStatus.APPROVED.value
     assert approved.smartlead_eligible is True
 
-    # Hard Disqualified lead
+    # Hard Disqualified lead enters PENDING_REVIEW (reviewable by human)
     app_dq = repo.enroll_draft(
         lead_id=l_dq_id,
         qualification_status="HARD_DISQUALIFIED",
         qa_status="PASS",
         disqualification_reason="Subcontractor under 5 employees.",
     )
-    assert app_dq.approval_status == ApprovalStatus.BLOCKED.value
+    assert app_dq.approval_status == ApprovalStatus.PENDING_REVIEW.value
     assert app_dq.smartlead_eligible is False
+
+    # Human operator can approve HARD_DISQUALIFIED lead if no delivery safety block exists
+    app_dq_approved = repo.approve_lead(l_dq_id, reviewer="TEST_OPERATOR")
+    assert app_dq_approved.approval_status == ApprovalStatus.APPROVED.value
+    assert app_dq_approved.smartlead_eligible is True
 
 
 def test_approval_edit_invalidates_smartlead_eligibility(db_session, run_id):
@@ -295,7 +310,8 @@ def test_approval_edit_invalidates_smartlead_eligibility(db_session, run_id):
 
 
 def test_json_to_db_migration_idempotence():
-    """Test 11: migrate_all() runs idempotently and creates 0 duplicate records."""
+    """Test 11: migrate_all() runs idempotently and creates 0 duplicate records on subsequent runs."""
+    _ = migrate_all()
     _ = migrate_all()
     summary = migrate_all()
     assert summary["campaigns"] == 0

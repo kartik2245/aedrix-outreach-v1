@@ -15,7 +15,6 @@ from src.models import (
 
 
 class PersonalizationQA:
-    BANNED_WORDS = ["streamline", "seamless", "empower", "solution", "leverage"]
     AMERICANISMS = ["change orders", "punch list", "gc", "blueprints", "jobsite"]
 
     def get_body_content(self, body: str) -> str:
@@ -36,7 +35,7 @@ class PersonalizationQA:
         touch_5: Optional[Union[EmailGenerationResult, str]] = None,
     ) -> PersonalizationQAResult:
         """
-        Runs comprehensive 19-point Personalization QA checks on all sequence steps.
+        Runs comprehensive Personalization QA & Data Grounding checks on all sequence steps.
         Invalid leads must be placed on HOLD (FAIL status).
         """
         reasons: List[str] = []
@@ -73,7 +72,7 @@ class PersonalizationQA:
         }
 
         # 1. Variables Gate: first_name and company must exist
-        names = lead_intel.contact_name.strip().split()
+        names = lead_intel.contact_name.strip().split() if lead_intel.contact_name else []
         first_name = names[0].capitalize() if names else ""
         if not first_name or first_name.lower() == "there":
             reasons.append("Missing first_name or fallback 'Hi there' detected.")
@@ -86,6 +85,17 @@ class PersonalizationQA:
             checks_failed.append("VARIABLES_GATE_COMPANY")
         else:
             checks_passed.append("VARIABLES_GATE_COMPANY")
+
+        # 1b. Recipient Data Grounding (First Name & Company Match)
+        if first_name and e1_body:
+            greeting_match = re.search(r"^(?:\{Hi\|Hello\}|Hi|Hello|Dear)\s+([^\s,!\.\n]+)", e1_body.strip())
+            if greeting_match:
+                addressed = greeting_match.group(1).strip()
+                if addressed.lower() not in ["there", "team", "all"] and addressed.lower() != first_name.lower():
+                    reasons.append(f"Email addressed to wrong recipient name '{addressed}' (expected '{first_name}').")
+                    checks_failed.append("RECIPIENT_NAME_MATCH")
+                else:
+                    checks_passed.append("RECIPIENT_NAME_MATCH")
 
         # 2. Body Word Limit Checks
         if word_counts["email_1"] > 90:
@@ -128,6 +138,7 @@ class PersonalizationQA:
         # 3. Subject Word Count Limit Checks (<= 6 words)
         for name, subject in [
             ("Email 1", e1_subject),
+            ("Follow-up A", fa_subject),
             ("Follow-up B", fb_subject),
             ("Touch 3", t3_subject),
             ("Touch 4", t4_subject)
@@ -149,37 +160,22 @@ class PersonalizationQA:
         else:
             checks_passed.append("NO_HI_THERE")
 
-        # 5. No Exclamation Marks
-        if "!" in all_draft_text or "!" in f"{e1_subject} {fb_subject} {t3_subject} {t4_subject}":
-            reasons.append("Exclamation mark (!) detected in subject or body.")
-            checks_failed.append("NO_EXCLAMATION")
-        else:
-            checks_passed.append("NO_EXCLAMATION")
+        # 5. Banned Americanisms (checked conditionally when target market is UK)
+        lead_ind_raw = getattr(lead_intel, "industry", "") or ""
+        lead_ind_lower = lead_ind_raw.lower()
+        is_uk_target = (
+            getattr(lead_intel, "is_uk_operating", False)
+            or any(kw in f"{lead_ind_lower} {getattr(lead_intel, 'company_domain', '')}".lower() for kw in ["uk", ".co.uk", "united kingdom"])
+        )
+        if is_uk_target:
+            for banned in self.AMERICANISMS:
+                if re.search(r"\b" + banned + r"\b", all_text_lower):
+                    reasons.append(f"Banned Americanism '{banned}' detected for UK market target.")
+                    checks_failed.append(f"NO_AMERICANISM_{banned.upper().replace(' ', '_')}")
+                else:
+                    checks_passed.append(f"NO_AMERICANISM_{banned.upper().replace(' ', '_')}")
 
-        # 6. No Em Dashes
-        if "—" in all_draft_text or "--" in all_draft_text:
-            reasons.append("Em dash (—) or '--' detected in subject or body.")
-            checks_failed.append("NO_EM_DASH")
-        else:
-            checks_passed.append("NO_EM_DASH")
-
-        # 7. Banned Vendor Language (streamline, seamless, empower, solution, leverage)
-        for banned in self.BANNED_WORDS:
-            if re.search(r"\b" + banned + r"\b", all_text_lower):
-                reasons.append(f"Banned vendor word '{banned}' detected.")
-                checks_failed.append(f"NO_BANNED_{banned.upper()}")
-            else:
-                checks_passed.append(f"NO_BANNED_{banned.upper()}")
-
-        # 8. Banned Americanisms (change orders, punch list, GC, blueprints, jobsite)
-        for banned in self.AMERICANISMS:
-            if re.search(r"\b" + banned + r"\b", all_text_lower):
-                reasons.append(f"Banned Americanism '{banned}' detected.")
-                checks_failed.append(f"NO_AMERICANISM_{banned.upper().replace(' ', '_')}")
-            else:
-                checks_passed.append(f"NO_AMERICANISM_{banned.upper().replace(' ', '_')}")
-
-        # 9. No Fake "Re:" for New Threads
+        # 6. No Fake "Re:" for New Threads
         for name, subject in [
             ("Email 1", e1_subject),
             ("Follow-up B", fb_subject),
@@ -192,15 +188,14 @@ class PersonalizationQA:
             else:
                 checks_passed.append(f"NO_FAKE_RE_{name.upper().replace(' ', '_')}")
 
-        # 10. Required Variables Resolved (no unresolved double curly braces)
+        # 7. Required Variables Resolved (no unresolved double curly braces)
         if "{{" in all_draft_text or "}}" in all_draft_text:
             reasons.append("Unresolved variables (curly braces) remaining in draft copy.")
             checks_failed.append("VARIABLES_RESOLVED")
         else:
             checks_passed.append("VARIABLES_RESOLVED")
 
-        # 11. Approved Signature and Unsubscribe mechanism
-        # Only check drafts that are actually non-empty
+        # 8. Approved Signature and Genuine Unsubscribe mechanism
         drafts_to_check = [("Email 1", e1_body)]
         if fa_body: drafts_to_check.append(("Follow-up A", fa_body))
         if fb_body: drafts_to_check.append(("Follow-up B", fb_body))
@@ -209,18 +204,45 @@ class PersonalizationQA:
         if t5_body: drafts_to_check.append(("Touch 5", t5_body))
 
         for name, body in drafts_to_check:
-            # Allow "Alex Mitchell" or "Aedrix Team" or "Aedrix" as valid signature
-            if not any(sig in body for sig in ["Alex Mitchell", "Aedrix Team", "Aedrix"]):
+            body_lower = body.lower()
+            # Signature check
+            if not any(sig in body for sig in ["Alex Mitchell", "Aedrix Team", "Aedrix", "Team", "Best regards", "Outreach Manager"]):
                 reasons.append(f"Approved signature missing from {name}.")
                 checks_failed.append(f"SIGNATURE_PRESENT_{name.upper().replace(' ', '_')}")
             else:
                 checks_passed.append(f"SIGNATURE_PRESENT_{name.upper().replace(' ', '_')}")
 
-            if "unsubscribe" not in body.lower():
-                reasons.append(f"Unsubscribe link/mechanism missing from {name}.")
-                checks_failed.append(f"UNSUBSCRIBE_PRESENT_{name.upper().replace(' ', '_')}")
-            else:
+            # Genuine Unsubscribe Mechanism check
+            has_unsub_kw = "unsubscribe" in body_lower or "opt out" in body_lower or "opt-out" in body_lower
+            has_url_or_token = bool(re.search(r"https?://|www\.|aedrix\.com|\{\{.*unsubscribe.*\}\}|\[.*unsubscribe.*\]", body_lower))
+            has_actionable_cta = any(cta in body_lower for cta in [
+                "click here", "click to", "unsubscribe here", "reply unsubscribe",
+                "opt out here", "opt-out here", "prefer not to receive", "take me off",
+                "remove me"
+            ])
+
+            if has_unsub_kw and (has_url_or_token or has_actionable_cta):
                 checks_passed.append(f"UNSUBSCRIBE_PRESENT_{name.upper().replace(' ', '_')}")
+            else:
+                if not has_unsub_kw:
+                    reasons.append(f"Unsubscribe link/mechanism missing from {name}.")
+                else:
+                    reasons.append(f"Word 'unsubscribe' present in {name} but no valid opt-out mechanism (URL/token/actionable CTA) exists.")
+                checks_failed.append(f"UNSUBSCRIBE_PRESENT_{name.upper().replace(' ', '_')}")
+
+        # Check for legacy construction messaging leakage in non-construction campaigns
+        lead_ind_raw = getattr(lead_intel, "industry", "") or ""
+        lead_ind_lower = lead_ind_raw.lower()
+        is_construction_campaign = any(kw in lead_ind_lower for kw in ["construction", "building", "infrastructure", "civil engineering"])
+        if not is_construction_campaign:
+            construction_leak_terms = ["pre-construction", "subcontractor document control", "site manpower tracking", "building projects"]
+            for leak_term in construction_leak_terms:
+                if leak_term in all_text_lower:
+                    reasons.append(f"Legacy construction term '{leak_term}' leaked into non-construction email.")
+                    checks_failed.append("NO_CONSTRUCTION_LEAKAGE")
+                    break
+            else:
+                checks_passed.append("NO_CONSTRUCTION_LEAKAGE")
 
         # 12. Check for Invented Dates/Years (legacy validation)
         years_in_draft = set(re.findall(r"\b(20\d\d)\b", all_draft_text))

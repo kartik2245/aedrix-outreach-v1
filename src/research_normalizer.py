@@ -54,7 +54,7 @@ class ResearchNormalizer:
         else:
             relevant_signal_evidence = self.normalize_evidence_level(raw.get("relevant_signal_evidence"), EvidenceLevel.UNKNOWN)
 
-        pain_point = str(raw.get("pain_point", "Managing pre-construction document control across multi-site teams.")).strip()
+        pain_point = str(raw.get("pain_point", "Operational efficiency and digital transformation challenges.")).strip()
         pain_point_evidence = self.normalize_evidence_level(raw.get("pain_point_evidence"), EvidenceLevel.INFERRED)
 
         sources_raw = raw.get("research_sources", [])

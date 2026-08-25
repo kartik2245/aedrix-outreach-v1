@@ -89,6 +89,12 @@ export const api = {
       body: JSON.stringify({ reviewer }),
     }),
 
+  approveEmailStatus: (leadId: string, reviewer = 'HUMAN_OPERATOR') =>
+    fetchJson<{ ok: boolean; message: string; record: ApprovalRecord }>(`/approvals/${leadId}/approve_email_status`, {
+      method: 'POST',
+      body: JSON.stringify({ reviewer }),
+    }),
+
   rejectLead: (leadId: string, reason = 'Rejected by operator', reviewer = 'HUMAN_OPERATOR') =>
     fetchJson<{ ok: boolean; message: string; record: ApprovalRecord }>(`/approvals/${leadId}/reject`, {
       method: 'POST',
@@ -156,6 +162,12 @@ export const api = {
     campaign_exclusions?: string[];
     voc_context?: string;
     campaign_id?: string;
+    company_name?: string;
+    product_or_service?: string;
+    value_proposition?: string;
+    offer?: string;
+    cta?: string;
+    sender_name?: string;
   }) =>
     fetchJson<{
       ok: boolean;
@@ -191,6 +203,12 @@ export const api = {
     additional_notes?: string;
     voc_context?: string;
     campaign_id?: string;
+    company_name?: string;
+    product_or_service?: string;
+    value_proposition?: string;
+    offer?: string;
+    cta?: string;
+    sender_name?: string;
   }) =>
     fetchJson<{
       ok: boolean;

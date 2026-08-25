@@ -249,21 +249,37 @@ class SmartleadStagingRunner:
 
 
         # -------------------------------------------------------------
-        # Subjects
+        # Subjects (Dynamic & ICP-Aware via sanitize_subject)
         # -------------------------------------------------------------
+        from src.utils.subject_sanitizer import sanitize_subject
 
-        email_1_subject = (
-            f"Pre-construction document control "
-            f"at {record.company}"
+        industry_val = getattr(record, "industry", None) or (record.metadata.get("industry") if isinstance(getattr(record, "metadata", None), dict) else None)
+
+        email_1_subject = sanitize_subject(
+            getattr(record, "email_1_subject", None),
+            company_name=record.company,
+            product_or_industry=industry_val,
+            voc_angle=record.voc_angle,
+            email_type="EMAIL_1",
+            max_words=6,
         )
 
-        followup_a_subject = (
-            f"Re: {email_1_subject}"
+        followup_a_subject = sanitize_subject(
+            f"Re: {email_1_subject}",
+            company_name=record.company,
+            product_or_industry=industry_val,
+            voc_angle=record.voc_angle,
+            email_type="FOLLOWUP_A",
+            max_words=6,
         )
 
-        followup_b_subject = (
-            f"Real-time manpower & financial tracking "
-            f"for {record.company}"
+        followup_b_subject = sanitize_subject(
+            getattr(record, "followup_b_subject", None),
+            company_name=record.company,
+            product_or_industry=industry_val,
+            voc_angle=record.voc_angle,
+            email_type="FOLLOWUP_B",
+            max_words=6,
         )
 
         # -------------------------------------------------------------

@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Eye, ChevronLeft, ChevronRight, X, Filter } from 'lucide-react';
 import { api } from '../services/api';
 import { LeadsListResponse } from '../types';
 import { Badge } from '../components/Badge';
 
 interface LeadsPageProps {
   onSelectLead: (leadId: string) => void;
+  initialCampaignId?: string | null;
+  onClearCampaignFilter?: () => void;
 }
 
-export const LeadsPage: React.FC<LeadsPageProps> = ({ onSelectLead }) => {
+export const LeadsPage: React.FC<LeadsPageProps> = ({
+  onSelectLead,
+  initialCampaignId,
+  onClearCampaignFilter,
+}) => {
   const [data, setData] = useState<LeadsListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -16,9 +22,15 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({ onSelectLead }) => {
   const [priority, setPriority] = useState('');
   const [approvalStatus, setApprovalStatus] = useState('');
   const [personalizationStatus, setPersonalizationStatus] = useState('');
+  const [campaignId, setCampaignId] = useState<string>(initialCampaignId || '');
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState('outreach_priority_index');
   const [sortOrder, setSortOrder] = useState('desc');
+
+  useEffect(() => {
+    setCampaignId(initialCampaignId || '');
+    setPage(1);
+  }, [initialCampaignId]);
 
   const fetchLeads = async () => {
     try {
@@ -29,6 +41,7 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({ onSelectLead }) => {
         priority,
         approval_status: approvalStatus,
         personalization_status: personalizationStatus,
+        campaign_id: campaignId || undefined,
         sort_by: sortBy,
         sort_order: sortOrder,
         page,
@@ -44,7 +57,7 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({ onSelectLead }) => {
 
   useEffect(() => {
     fetchLeads();
-  }, [search, icpStatus, priority, approvalStatus, personalizationStatus, page, sortBy, sortOrder]);
+  }, [search, icpStatus, priority, approvalStatus, personalizationStatus, campaignId, page, sortBy, sortOrder]);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -55,8 +68,51 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({ onSelectLead }) => {
     }
   };
 
+  const handleClearCampaign = () => {
+    setCampaignId('');
+    setPage(1);
+    if (onClearCampaignFilter) {
+      onClearCampaignFilter();
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Active Campaign Filter Banner */}
+      {campaignId && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '10px 16px',
+            fontSize: '0.85rem',
+            color: 'var(--text-main)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Filter size={15} color="var(--primary)" />
+            <span>
+              Filtering leads by Discovery Campaign:{' '}
+              <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>
+                {campaignId}
+              </strong>
+            </span>
+          </div>
+          <button
+            className="btn btn-outline"
+            style={{ padding: '3px 8px', fontSize: '0.75rem', gap: '4px' }}
+            onClick={handleClearCampaign}
+          >
+            <X size={13} />
+            <span>Clear Campaign Filter (Show All)</span>
+          </button>
+        </div>
+      )}
+
       {/* Controls Bar */}
       <div className="controls-bar">
         <div className="search-box">
@@ -139,6 +195,8 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({ onSelectLead }) => {
             <tr>
               <th onClick={() => handleSort('company')}>Company</th>
               <th onClick={() => handleSort('contact')}>Decision Maker</th>
+              <th onClick={() => handleSort('email')}>Email</th>
+              <th>Email Status</th>
               <th onClick={() => handleSort('qualification_status')}>ICP Status</th>
               <th onClick={() => handleSort('opportunity_score')}>Opp</th>
               <th onClick={() => handleSort('accessibility_score')}>Acc</th>
@@ -152,62 +210,81 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({ onSelectLead }) => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '32px' }}>
+                <td colSpan={12} style={{ textAlign: 'center', padding: '32px' }}>
                   Loading leads...
                 </td>
               </tr>
             ) : !data || data.items.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-dim)' }}>
+                <td colSpan={12} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-dim)' }}>
                   No leads matching search or filter criteria.
                 </td>
               </tr>
             ) : (
-              data.items.map((lead) => (
-                <tr
-                  key={lead.lead_id}
-                  onClick={() => onSelectLead(lead.lead_id)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <td style={{ fontWeight: 600 }}>{lead.company}</td>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{lead.contact}</div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>{lead.title}</div>
-                  </td>
-                  <td>
-                    <Badge type="icp" value={lead.qualification_status} />
-                  </td>
-                  <td style={{ fontWeight: 600 }}>{lead.opportunity_score.toFixed(0)}</td>
-                  <td style={{ fontWeight: 600 }}>{lead.accessibility_score.toFixed(0)}</td>
-                  <td>
-                    <span style={{ fontWeight: 700, color: 'var(--primary)' }}>
-                      {lead.outreach_priority_index.toFixed(1)}
-                    </span>
-                  </td>
-                  <td>
-                    <Badge type="priority" value={lead.priority} />
-                  </td>
-                  <td>
-                    <Badge type="personalization" value={lead.personalization_status} />
-                  </td>
-                  <td>
-                    <Badge type="approval" value={lead.approval_status} />
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="btn btn-outline"
-                      style={{ padding: '4px 10px', fontSize: '0.76rem' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectLead(lead.lead_id);
-                      }}
-                    >
-                      <Eye size={13} />
-                      <span>Dossier</span>
-                    </button>
-                  </td>
-                </tr>
-              ))
+              data.items.map((lead) => {
+                const st = (lead.email_status || (lead.email && lead.email.includes('@') ? 'VERIFIED' : 'NO_EMAIL')).toUpperCase();
+                const isNoEmail = st === 'NO_EMAIL' || st === 'NO_EMAIL_PERSISTED' || !lead.email;
+
+                return (
+                  <tr
+                    key={lead.lead_id}
+                    onClick={() => onSelectLead(lead.lead_id)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td style={{ fontWeight: 600 }}>{lead.company}</td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{lead.contact}</div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>{lead.title}</div>
+                    </td>
+                    <td>
+                      {isNoEmail ? (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                          No email discovered
+                        </span>
+                      ) : (
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
+                          {lead.email}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <Badge type="email_status" value={st} />
+                    </td>
+                    <td>
+                      <Badge type="icp" value={lead.qualification_status} />
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{lead.opportunity_score.toFixed(0)}</td>
+                    <td style={{ fontWeight: 600 }}>{lead.accessibility_score.toFixed(0)}</td>
+                    <td>
+                      <span style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                        {lead.outreach_priority_index.toFixed(1)}
+                      </span>
+                    </td>
+                    <td>
+                      <Badge type="priority" value={lead.priority} />
+                    </td>
+                    <td>
+                      <Badge type="personalization" value={lead.personalization_status} />
+                    </td>
+                    <td>
+                      <Badge type="approval" value={lead.approval_status} />
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        className="btn btn-outline"
+                        style={{ padding: '4px 10px', fontSize: '0.76rem' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectLead(lead.lead_id);
+                        }}
+                      >
+                        <Eye size={13} />
+                        <span>Dossier</span>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

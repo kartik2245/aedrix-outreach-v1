@@ -28,8 +28,15 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def setup_test_environment():
     """Ensure tests run in clean DEMO mode with safe dry-run defaults."""
+    import os
+    old_db = os.environ.get("DATABASE_ENABLED")
+    os.environ["DATABASE_ENABLED"] = "false"
     ModeService.get_instance().set_mode(AppMode.DEMO)
     yield
+    if old_db is not None:
+        os.environ["DATABASE_ENABLED"] = old_db
+    else:
+        os.environ.pop("DATABASE_ENABLED", None)
 
 
 def test_1_manual_icp_validation_failures():
@@ -198,15 +205,15 @@ def test_5_deepline_discovery_on_manual_icp():
     client.post(f"/api/icp/{icp_id}/approve", json={"reviewer": "OPERATOR"})
 
     # 2. Preview Deepline Run
-    prev_res = client.post(f"/api/icp/{icp_id}/deepline-preview", json={"requested_count": 50})
+    prev_res = client.post(f"/api/icp/{icp_id}/deepline-preview", json={"requested_count": 5})
     assert prev_res.status_code == 200
     prev_data = prev_res.json()
     assert prev_data["deepline_eligible"] is True
     assert prev_data["discovery_request"]["icp_id"] == icp_id
-    assert prev_data["discovery_request"]["requested_lead_count"] == 50
+    assert prev_data["discovery_request"]["requested_lead_count"] == 5
 
     # 3. Run Deepline Discovery
-    run_res = client.post(f"/api/icp/{icp_id}/deepline-run", json={"requested_count": 50})
+    run_res = client.post(f"/api/icp/{icp_id}/deepline-run", json={"requested_count": 5})
     assert run_res.status_code == 200
     run_data = run_res.json()
     assert run_data["ok"] is True

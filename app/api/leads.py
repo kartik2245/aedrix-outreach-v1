@@ -24,6 +24,10 @@ class LeadSummaryItem(BaseModel):
     contact: str
     title: str
     email: str
+    email_status: str = "VERIFIED"
+    email_source: Optional[str] = None
+    approval_stage: Optional[str] = None
+    workflow_status: Optional[str] = None
     qualification_status: str
     opportunity_score: float
     accessibility_score: float
@@ -49,6 +53,13 @@ class LeadDetailResponse(BaseModel):
     contact: str
     title: str
     email: str
+    email_status: str = "VERIFIED"
+    email_source: Optional[str] = None
+    email_validated: Optional[bool] = None
+    email_found_and_valid: Optional[bool] = None
+    miss_reason: Optional[str] = None
+    approval_stage: Optional[str] = None
+    workflow_status: Optional[str] = None
     website: Optional[str] = None
     linkedin_url: Optional[str] = None
     qualification_status: str
@@ -146,6 +157,10 @@ def list_leads(
                         contact=l.contact_name,
                         title=l.job_title,
                         email=l.email,
+                        email_status=l.email_status.value if hasattr(l.email_status, "value") else str(getattr(l, "email_status", "VERIFIED")),
+                        email_source=getattr(l, "email_source", None),
+                        approval_stage=l.email_approval.approval_stage if hasattr(l, "email_approval") and l.email_approval and hasattr(l.email_approval, "approval_stage") else "AI_EMAIL_APPROVAL",
+                        workflow_status=l.email_approval.workflow_status if hasattr(l, "email_approval") and l.email_approval and hasattr(l.email_approval, "workflow_status") else "AWAITING_EMAIL_APPROVAL",
                         qualification_status=l.qualification_status,
                         opportunity_score=l.opportunity_score,
                         accessibility_score=l.accessibility_score,
@@ -217,6 +232,10 @@ def list_leads(
             contact=r.contact,
             title=r.title,
             email=r.email,
+            email_status=getattr(r, "email_status", r.metadata.get("email_status", "VERIFIED")),
+            email_source=getattr(r, "email_source", r.metadata.get("email_source")),
+            approval_stage=getattr(r, "approval_stage", "AI_EMAIL_APPROVAL"),
+            workflow_status=getattr(r, "workflow_status", "AWAITING_EMAIL_APPROVAL"),
             qualification_status=r.qualification_status,
             opportunity_score=r.opportunity_score,
             accessibility_score=r.accessibility_score,
@@ -276,6 +295,13 @@ def get_lead_detail(lead_id: str) -> LeadDetailResponse:
                         contact=db_lead.contact_name,
                         title=db_lead.job_title,
                         email=db_lead.email,
+                        email_status=db_lead.email_status.value if hasattr(db_lead.email_status, "value") else str(getattr(db_lead, "email_status", "VERIFIED")),
+                        email_source=getattr(db_lead, "email_source", app.metadata_json.get("email_source") if app else None),
+                        email_validated=getattr(db_lead, "email_validated", app.metadata_json.get("email_validated") if app else None),
+                        email_found_and_valid=getattr(db_lead, "email_found_and_valid", app.metadata_json.get("email_found_and_valid") if app else None),
+                        miss_reason=getattr(db_lead, "miss_reason", app.metadata_json.get("miss_reason") if app else None),
+                        approval_stage=app.approval_stage if app else "AI_EMAIL_APPROVAL",
+                        workflow_status=app.workflow_status if app else "AWAITING_EMAIL_APPROVAL",
                         website=db_lead.company_domain,
                         linkedin_url=db_lead.linkedin_url,
                         qualification_status=db_lead.qualification_status,
@@ -336,6 +362,13 @@ def get_lead_detail(lead_id: str) -> LeadDetailResponse:
         contact=record.contact,
         title=record.title,
         email=record.email,
+        email_status=getattr(record, "email_status", record.metadata.get("email_status", "VERIFIED")),
+        email_source=getattr(record, "email_source", record.metadata.get("email_source")),
+        email_validated=getattr(record, "email_validated", record.metadata.get("email_validated")),
+        email_found_and_valid=getattr(record, "email_found_and_valid", record.metadata.get("email_found_and_valid")),
+        miss_reason=getattr(record, "miss_reason", record.metadata.get("miss_reason")),
+        approval_stage=getattr(record, "approval_stage", "AI_EMAIL_APPROVAL"),
+        workflow_status=getattr(record, "workflow_status", "AWAITING_EMAIL_APPROVAL"),
         website=record.metadata.get("website") or intel.get("company_domain"),
         linkedin_url=record.metadata.get("linkedin_url") or intel.get("linkedin_url"),
         qualification_status=record.qualification_status,

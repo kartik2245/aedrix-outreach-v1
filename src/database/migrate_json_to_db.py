@@ -197,7 +197,7 @@ def migrate_all() -> Dict[str, int]:
                             qualification_status=item.get("qualification_status", "QUALIFIED"),
                             personalization_status=item.get("personalization_status", "SIGNAL_VERIFIED"),
                             personalization_note=item.get("personalization_note"),
-                            voc_angle=item.get("voc_angle"),
+                            voc_angle=item.get("voc_angle")[:255] if item.get("voc_angle") else None,
                         )
                         session.add(db_lead)
                         existing_lead_ids.add(lead_id)

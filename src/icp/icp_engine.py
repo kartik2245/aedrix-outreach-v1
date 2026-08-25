@@ -45,23 +45,25 @@ class ICPEngine:
         if isinstance(config_input, ICPConfig):
             # Convert dynamic Pydantic ICPConfig
             geo_dict = config_input.geography.model_dump() if hasattr(config_input.geography, "model_dump") else {}
+            primary_geo = config_input.geography.primary_country if hasattr(config_input, "geography") and hasattr(config_input.geography, "primary_country") else "United Kingdom"
+            allowed_geo = geo_dict.get("allowed_country_keywords") or [primary_geo.upper()]
             return {
                 "icp_id": config_input.id,
                 "campaign_id": config_input.campaign_id,
                 "icp_version": config_input.version,
                 "target_geography": {
-                    "allowed_country_keywords": geo_dict.get("allowed_country_keywords") or ["UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB"],
-                    "require_uk_operating": geo_dict.get("require_target_country_operating", True)
+                    "allowed_country_keywords": allowed_geo,
+                    "require_target_country_operating": geo_dict.get("require_target_country_operating", True)
                 },
-                "allowed_industry_keywords": config_input.allowed_industry_keywords or ["construction", "contractor", "building", "civil engineering", "infrastructure", "engineering"],
-                "disallowed_industry_keywords": config_input.disallowed_industry_keywords or ["pure software", "retail only", "hospitality only", "consumer goods"],
+                "allowed_industry_keywords": config_input.allowed_industry_keywords or [i.lower() for i in config_input.industries],
+                "disallowed_industry_keywords": config_input.disallowed_industry_keywords or [],
                 "size_thresholds": {
-                    "min_employee_count": config_input.minimum_employees or 50,
-                    "min_revenue_gbp_millions": config_input.minimum_revenue or 10.0,
+                    "min_employee_count": config_input.minimum_employees or 10,
+                    "min_revenue_gbp_millions": config_input.minimum_revenue or 0.0,
                     "evaluation_mode": "OR"
                 },
                 "target_personas": {
-                    "title_keywords": config_input.persona_title_keywords or ["digital", "it director", "operations", "bim", "transformation", "cio"]
+                    "title_keywords": config_input.persona_title_keywords or ["director", "head", "vp", "chief", "manager"]
                 },
                 "hard_disqualification_rules": [r.model_dump() for r in config_input.hard_disqualifiers] if config_input.hard_disqualifiers else [],
                 "campaign_exclusion_rules": [r.model_dump() for r in config_input.campaign_exclusions] if config_input.campaign_exclusions else []
@@ -81,14 +83,14 @@ class ICPEngine:
 
         return {
             "target_geography": {
-                "allowed_country_keywords": ["UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB"],
-                "require_uk_operating": True
+                "allowed_country_keywords": ["UK", "UNITED KINGDOM"],
+                "require_target_country_operating": True
             },
-            "allowed_industry_keywords": ["construction", "contractor", "building", "civil engineering", "infrastructure", "engineering"],
-            "disallowed_industry_keywords": ["pure software", "retail only", "hospitality only", "consumer goods"],
+            "allowed_industry_keywords": ["technology", "software", "services"],
+            "disallowed_industry_keywords": [],
             "size_thresholds": {
-                "min_employee_count": 50,
-                "min_revenue_gbp_millions": 10.0,
+                "min_employee_count": 10,
+                "min_revenue_gbp_millions": 0.0,
                 "evaluation_mode": "OR"
             }
         }
@@ -127,61 +129,82 @@ class ICPEngine:
         )
 
     def _check_hard_disqualifications(self, lead: Dict[str, Any]) -> Tuple[bool, Optional[str], Optional[str]]:
-        """Evaluates Hard Disqualification rules."""
-        # Geography check
-        is_uk = lead.get("is_uk_operating")
-        country = str(lead.get("country") or lead.get("company_location") or "").strip().upper()
-        allowed_countries = self.config.get("target_geography", {}).get(
-            "allowed_country_keywords", ["UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB"]
+        """Evaluates Hard Disqualification rules dynamically against active ICP criteria."""
+        # 1. Geography Check
+        is_uk_flag = lead.get("is_uk_operating")
+        country = str(lead.get("country") or "").strip().upper()
+        city = str(lead.get("city") or "").strip().upper()
+        address = str(lead.get("address") or "").strip().upper()
+        state = str(lead.get("state") or lead.get("region") or "").strip().upper()
+        location = str(lead.get("location") or lead.get("geography") or "").strip().upper()
+        comp_loc = str(lead.get("company_location") or "").strip().upper()
+        comp_name = str(lead.get("company_name") or "").strip().upper()
+        signals = str(lead.get("relevant_signal") or "").strip().upper()
+
+        loc_parts = [p for p in [city, address, location, state, comp_loc, country] if p]
+        most_specific_loc = loc_parts[0] if loc_parts else country
+        full_geo_text = f"{' '.join(loc_parts)} {comp_name} {signals}".upper()
+
+        words = set(re.findall(r'\b[A-Z0-9_]+\b', full_geo_text))
+        target_geo = self.config.get("target_geography", {})
+        allowed_geo_kw = [str(kw).strip().upper() for kw in target_geo.get("allowed_country_keywords", []) if kw and str(kw).strip()]
+        primary_country = str(target_geo.get("primary_country") or "").strip().upper()
+
+        is_uk_only_target = (
+            len(allowed_geo_kw) > 0 and all(kw in ("UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB", "GBR", "NORTHERN IRELAND", "GREAT BRITAIN") for kw in allowed_geo_kw)
         )
 
-        if is_uk is False:
+        if is_uk_flag is False and is_uk_only_target:
             return True, "Non-UK geography (Headquarters or primary operations outside target geography)", "OUTSIDE_UK"
 
-        if country:
-            matches_geo = any(kw in country for kw in allowed_countries)
-            if not matches_geo:
-                return True, "Non-UK geography (Headquarters or primary operations outside target geography)", "OUTSIDE_UK"
+        if allowed_geo_kw or primary_country:
+            matches_geo = False
+            if allowed_geo_kw:
+                matches_geo = any(kw in words or kw in full_geo_text for kw in allowed_geo_kw)
+            if not matches_geo and primary_country and not allowed_geo_kw:
+                matches_geo = primary_country in words or primary_country in full_geo_text or (country and country in primary_country)
 
-        # Industry & Sector check
+            if not matches_geo and (country or most_specific_loc):
+                loc_str = most_specific_loc or country
+                code = "OUTSIDE_UK" if is_uk_only_target else "OUTSIDE_TARGET_GEOGRAPHY"
+                reason = "Non-UK geography (Headquarters or primary operations outside target geography)" if is_uk_only_target else f"Non-target geography (Headquarters or primary operations '{loc_str}' outside target geography)"
+                return True, reason, code
+
+        # 2. Industry & Sector Check
         is_const_flag = lead.get("is_construction_sector")
-        if is_const_flag is False:
-            return True, "Non-construction sector (Out of scope business model)", "NON_CONSTRUCTION"
-
         industry = str(lead.get("industry") or "").lower()
         construction_type = str(lead.get("construction_type") or "").lower()
         combined_ind = f"{industry} {construction_type}".strip()
 
+        allowed_keywords = self.config.get("allowed_industry_keywords", [])
+        is_const_target = len(allowed_keywords) > 0 and any(kw.lower() in ("construction", "contractor", "building", "civil engineering") for kw in allowed_keywords)
+
+        if is_const_flag is False and is_const_target:
+            return True, "Non-target sector (Out of scope business model)", "NON_CONSTRUCTION"
+
         disallowed_keywords = self.config.get("disallowed_industry_keywords", [])
-        if any(dkw in combined_ind for dkw in disallowed_keywords):
-            return True, "Non-construction sector (Out of scope business model)", "NON_CONSTRUCTION"
+        if disallowed_keywords:
+            if any(dkw.lower() in combined_ind for dkw in disallowed_keywords if dkw and dkw.strip()):
+                return True, f"Disallowed industry (Industry '{industry}' matches disallowed ICP criteria)", "DISALLOWED_INDUSTRY"
 
-        # Only apply the allowed-keyword backstop when is_construction_sector is NOT explicitly True.
-        # If the adapter (or AI Ark) explicitly flags is_construction_sector=True, respect that judgement
-        # and skip the keyword list check (AI Ark often returns non-standard SIC labels like 'Machinery'
-        # for construction-adjacent firms).
-        if is_const_flag is not True:
-            allowed_keywords = self.config.get("allowed_industry_keywords", ["construction", "contractor", "building", "infrastructure", "civil engineering", "engineering"])
-            if combined_ind and not any(akw in combined_ind for akw in allowed_keywords):
-                return True, "Non-construction sector (Out of scope business model)", "NON_CONSTRUCTION"
+        # If the lead is explicitly marked as construction sector True, respect that and skip keyword check for construction ICPs
+        if not (is_const_flag is True and is_const_target):
+            if allowed_keywords and combined_ind:
+                matches_ind = any(akw.lower() in combined_ind for akw in allowed_keywords if akw and akw.strip())
+                if not matches_ind and len(allowed_keywords) > 0:
+                    return True, f"Industry '{industry}' does not match target ICP criteria", "NON_TARGET_INDUSTRY"
 
-        # Size threshold check
+        # 3. Size Threshold Check
         emp_count = self._parse_employee_count(lead)
         rev_millions = self._parse_revenue_millions(lead)
-        min_emp = self.config.get("size_thresholds", {}).get("min_employee_count", 50)
-        min_rev = self.config.get("size_thresholds", {}).get("min_revenue_gbp_millions", 10.0)
+        min_emp = self.config.get("size_thresholds", {}).get("min_employee_count", 10)
+        min_rev = self.config.get("size_thresholds", {}).get("min_revenue_gbp_millions", 0.0)
 
-        # If both are known and both are under threshold -> Hard Disqualified
         if emp_count is not None and emp_count > 0 and emp_count < min_emp:
-            if rev_millions is not None and rev_millions >= min_rev:
+            if min_rev > 0 and rev_millions is not None and rev_millions >= min_rev:
                 pass  # Qualified via revenue
-            elif rev_millions is None or rev_millions < min_rev:
+            else:
                 return True, f"Under minimum size threshold (<{min_emp} employees)", "UNDER_SIZE_THRESHOLD"
-
-        # Out of scope business model check
-        business_model = str(lead.get("business_model") or "").lower()
-        if business_model and any(obm in business_model for obm in ["recruiter only", "software vendor", "residential micro-subcontractor"]):
-            return True, "Clearly out-of-scope business model", "OUT_OF_SCOPE_BUSINESS_MODEL"
 
         return False, None, None
 

@@ -23,14 +23,14 @@ router = APIRouter(prefix="/icp", tags=["ICP Designer & Discovery"])
 class GenerateICPRequest(BaseModel):
     campaign_name: str
     campaign_objective: str
-    product_context: Optional[str] = "Aedrix is a modular construction management SaaS platform for UK main contractors covering pre-construction document control, drawing versioning, site manpower tracking, and commercial control."
-    geography: Optional[str] = "United Kingdom"
-    industry: Optional[str] = "Construction, Commercial Building, Infrastructure"
-    company_size: Optional[str] = "50+ employees or £10M+ revenue"
+    product_context: Optional[str] = None
+    geography: Optional[str] = None
+    industry: Optional[str] = None
+    company_size: Optional[str] = None
     target_personas: Optional[List[str]] = Field(default_factory=list)
-    minimum_employees: Optional[int] = 50
+    minimum_employees: Optional[int] = 10
     maximum_employees: Optional[int] = None
-    minimum_revenue: Optional[float] = 10.0
+    minimum_revenue: Optional[float] = None
     maximum_revenue: Optional[float] = None
     positive_signals: Optional[List[str]] = Field(default_factory=list)
     negative_signals: Optional[List[str]] = Field(default_factory=list)
@@ -38,16 +38,22 @@ class GenerateICPRequest(BaseModel):
     campaign_exclusions: Optional[List[str]] = Field(default_factory=list)
     voc_context: Optional[str] = None
     campaign_id: Optional[str] = None
+    product_or_service: Optional[str] = None
+    value_proposition: Optional[str] = None
+    offer: Optional[str] = None
+    cta: Optional[str] = None
+    company_name: Optional[str] = None
+    sender_name: Optional[str] = None
 
 
 class CreateManualICPRequest(BaseModel):
     campaign_name: str = Field(..., min_length=2, description="Human readable campaign name")
     campaign_objective: str = Field(..., min_length=5, description="High-level objective and campaign strategy")
-    industry: Optional[str] = "Construction"
+    industry: Optional[str] = None
     industries: Optional[List[str]] = None
-    geography: Optional[str] = "United Kingdom"
+    geography: Optional[str] = None
     allowed_country_keywords: Optional[List[str]] = None
-    minimum_employees: Optional[int] = 50
+    minimum_employees: Optional[int] = 10
     maximum_employees: Optional[int] = None
     minimum_revenue: Optional[float] = 10.0
     maximum_revenue: Optional[float] = None
@@ -61,6 +67,12 @@ class CreateManualICPRequest(BaseModel):
     additional_notes: Optional[str] = None
     voc_context: Optional[str] = None
     campaign_id: Optional[str] = None
+    company_name: Optional[str] = None
+    product_or_service: Optional[str] = None
+    value_proposition: Optional[str] = None
+    offer: Optional[str] = None
+    cta: Optional[str] = None
+    sender_name: Optional[str] = None
 
 
 class ApproveICPRequest(BaseModel):
@@ -78,7 +90,7 @@ class EditICPRequest(BaseModel):
 
 
 class DeeplineRunRequest(BaseModel):
-    requested_count: int = Field(default=100, ge=10, le=5000)
+    requested_count: int = Field(default=100, ge=1, le=5000)
 
 
 def _map_db_icp_to_record(app_obj) -> ICPApprovalRecord:
@@ -142,23 +154,31 @@ def create_manual_icp(payload: CreateManualICPRequest):
 
     # 2. Geography Configuration
     geo_country = (payload.geography or "United Kingdom").strip()
-    geo_keywords = payload.allowed_country_keywords or [
-        geo_country.upper(), "UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "NORTHERN IRELAND", "GREAT BRITAIN"
-    ]
+    if payload.allowed_country_keywords:
+        geo_keywords = payload.allowed_country_keywords
+    else:
+        geo_keywords = []
+        for term in re.split(r'[\n,;]+', geo_country):
+            clean_t = term.strip().upper()
+            if clean_t and clean_t not in geo_keywords:
+                geo_keywords.append(clean_t)
+        if not geo_keywords:
+            geo_keywords = [geo_country.upper()]
+
     geography_cfg = GeographyConfig(
         primary_country=geo_country,
-        country_codes=["UK", "GB", "GBR"] if "UK" in geo_country.upper() or "UNITED KINGDOM" in geo_country.upper() else [geo_country[:3].upper()],
+        country_codes=[geo_keywords[0][:3].upper()] if geo_keywords else [geo_country[:3].upper()],
         allowed_country_keywords=geo_keywords,
         require_target_country_operating=True,
     )
 
     # 3. Industries & Personas
-    ind_list = payload.industries or [ind.strip() for ind in (payload.industry or "Construction").split(",") if ind.strip()]
+    ind_list = payload.industries or [ind.strip() for ind in (payload.industry or "Technology").split(",") if ind.strip()]
     if not ind_list:
-        ind_list = ["Commercial Construction", "Civil Engineering", "Infrastructure"]
+        ind_list = ["Technology", "Software", "Services"]
     allowed_ind_keywords = [i.upper() for i in ind_list]
 
-    personas = payload.target_personas or ["Head of Pre-Construction", "Commercial Director", "Operations Director", "Managing Director"]
+    personas = payload.target_personas or ["Founder", "CEO", "Chief Technology Officer", "Head of Technology", "Director"]
     persona_keywords = [p.upper() for p in personas]
 
     # 4. Company Size description
@@ -175,14 +195,13 @@ def create_manual_icp(payload: CreateManualICPRequest):
                 size_parts.append(f"£{payload.minimum_revenue}M-£{payload.maximum_revenue}M revenue")
             else:
                 size_parts.append(f"£{payload.minimum_revenue}M+ revenue")
-        size_desc = " or ".join(size_parts) if size_parts else "50+ employees or £10M+ revenue"
+        size_desc = " or ".join(size_parts) if size_parts else "10+ employees"
 
     # 5. Qualification / Positive Signals
     pos_signals = payload.qualification_rules or [
-        "Active commercial project pipeline",
-        "Tier 1 or Tier 2 UK main contractor scale",
-        "Document control and drawing versioning challenges",
-        "Multi-site regional project delivery",
+        f"Operating in target geography: {geo_country}",
+        f"Operating in target industry: {', '.join(ind_list)}",
+        "Target decision maker persona match",
     ]
 
     # 6. Hard Disqualification Rules
@@ -199,7 +218,7 @@ def create_manual_icp(payload: CreateManualICPRequest):
     else:
         hard_disqualifiers = [
             HardDisqualificationRule(code="HD_NON_TARGET_GEO", description=f"Operating exclusively outside {geo_country}", field="geography"),
-            HardDisqualificationRule(code="HD_NON_TARGET_INDUSTRY", description="Non-target industry sector or purely residential micro-builder", field="industry"),
+            HardDisqualificationRule(code="HD_NON_TARGET_INDUSTRY", description=f"Non-target industry sector outside {', '.join(ind_list)}", field="industry"),
             HardDisqualificationRule(code="HD_BELOW_SIZE_THRESHOLD", description=f"Company size below {size_desc}", field="company_size"),
         ]
 
@@ -232,26 +251,32 @@ def create_manual_icp(payload: CreateManualICPRequest):
         geography=geography_cfg,
         industries=ind_list,
         allowed_industry_keywords=allowed_ind_keywords,
-        disallowed_industry_keywords=["RESIDENTIAL ONLY", "DOMESTIC ONLY", "MICRO SUBCONTRACTOR"],
+        disallowed_industry_keywords=[],
         company_size=size_desc,
-        minimum_employees=payload.minimum_employees,
+        minimum_employees=payload.minimum_employees or 10,
         maximum_employees=payload.maximum_employees,
-        minimum_revenue=payload.minimum_revenue,
+        minimum_revenue=payload.minimum_revenue or 0.0,
         maximum_revenue=payload.maximum_revenue,
         target_personas=personas,
         persona_title_keywords=persona_keywords,
         positive_signals=pos_signals,
-        negative_signals=["Single-site domestic builder", "Turnover below minimum threshold"],
+        negative_signals=["Out of scope business model", "Under minimum employee threshold"],
         hard_disqualifiers=hard_disqualifiers,
         campaign_exclusions=campaign_exclusions,
         required_conditions=[f"Operating in {geo_country}", f"Meets {size_desc}"],
-        preferred_conditions=["Active digital transformation initiatives", "High pre-construction document volume"],
+        preferred_conditions=["Active growth initiatives", "Identifiable decision maker"],
         scoring_weights=ScoringWeights(),
         source_context=payload.additional_notes or "Manually created ICP via operator interface.",
-        voc_context=payload.voc_context or "Pre-construction document control, drawing revision risk, commercial management.",
+        voc_context=payload.voc_context or "Target audience operational challenges and growth requirements.",
         reasoning="Manually configured by operator.",
         status=ICPStatus.PENDING_REVIEW,
         source=ICPSource.MANUAL,
+        company_name=payload.company_name,
+        product_or_service=payload.product_or_service,
+        value_proposition=payload.value_proposition,
+        offer=payload.offer,
+        cta=payload.cta,
+        sender_name=payload.sender_name,
     )
 
     # 9. Enroll in PostgreSQL or fallback store
@@ -314,6 +339,12 @@ def generate_icp(payload: GenerateICPRequest):
         campaign_exclusions=payload.campaign_exclusions,
         voc_context=payload.voc_context,
         campaign_id=payload.campaign_id,
+        company_name=payload.company_name,
+        product_or_service=payload.product_or_service,
+        value_proposition=payload.value_proposition,
+        offer=payload.offer,
+        cta=payload.cta,
+        sender_name=payload.sender_name,
     )
 
     from src.config.app_mode import ModeService

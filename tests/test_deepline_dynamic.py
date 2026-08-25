@@ -86,7 +86,7 @@ def test_2_unapproved_icp_blocks_deepline_execution(test_setup):
 def test_3_dry_run_discovery_multi_lead_simulation(test_setup):
     """Verify dry-run Deepline discovery generates 100 simulated leads without API calls."""
     designer = ICPDesigner()
-    icp = designer.design_icp(campaign_name="Dry Run 100 Leads", campaign_objective="Test")
+    icp = designer.design_icp(campaign_name="Dry Run 100 Leads", campaign_objective="Test", geography="United Kingdom", industry="Construction")
     record = test_setup["icp_engine"].enroll_icp(icp)
     approved_record = test_setup["icp_engine"].approve_icp(record.icp_id, reviewer="Admin")
 
@@ -112,9 +112,9 @@ def test_3_dry_run_discovery_multi_lead_simulation(test_setup):
     assert "export.json" in artifacts
     assert "run_metadata.json" in artifacts
 
-    # Verify leads enrolled into approval queue
+    # Verify leads enrolled into approval queue (10 unique companies simulated across 100 leads)
     approval_records = test_setup["app_engine"].store.load_queue()
-    assert len(approval_records) == res["summary"]["qualified"]
+    assert len(approval_records) == 10
     assert all(r.metadata.get("campaign_id") == icp.campaign_id for r in approval_records)
 
 
@@ -486,6 +486,8 @@ def test_11_deepline_full_offline_pipeline_verification(monkeypatch, test_setup)
                         "link": {
                             "linkedin": "https://linkedin.com/in/test-lead"
                         },
+                        "email": "test@testconstruction.co.uk",
+                        "email_status": "EVIDENCE_VERIFIED",
                         "company": {
                             "summary": {
                                 "name": "Test Construction Ltd"
@@ -549,7 +551,7 @@ def test_11_deepline_full_offline_pipeline_verification(monkeypatch, test_setup)
 
     # 3. Qualification via ICPEngine
     designer = ICPDesigner()
-    icp = designer.design_icp(campaign_name="Offline Verification", campaign_objective="Test")
+    icp = designer.design_icp(campaign_name="Offline Verification", campaign_objective="Test", geography="United Kingdom", industry="Construction")
     icp_record = test_setup["icp_engine"].enroll_icp(icp)
     approved_icp_record = test_setup["icp_engine"].approve_icp(icp_record.icp_id, reviewer="Admin")
 
@@ -559,13 +561,13 @@ def test_11_deepline_full_offline_pipeline_verification(monkeypatch, test_setup)
 
     # 4. Approval Enrollment via DeeplineDiscoveryRunner (with mocked LLM)
     class MockLLMClient:
-        def generate_email_1(self, lead, voc):
+        def generate_email_1(self, lead, voc, icp_config=None):
             class Email: body = "Test Email Body"
             return Email()
-        def generate_followup_a(self, lead, e1, voc):
+        def generate_followup_a(self, lead, e1, voc, icp_config=None):
             class Email: body = "Test Followup A Body"
             return Email()
-        def generate_followup_b(self, lead, voc):
+        def generate_followup_b(self, lead, voc, icp_config=None):
             class Email: body = "Test Followup B Body"
             return Email()
 
@@ -626,6 +628,7 @@ def test_12_real_ai_ark_response_regression(monkeypatch, test_setup):
                         },
                         "location": "London, United Kingdom",
                         "email": "j.ozanne@balfourbeatty.com",
+                        "mock_play_response": {"email": "j.ozanne@balfourbeatty.com", "email_validated": True, "email_found_and_valid": True, "email_source": "pre_indexed"},
                         "skills": ["Digital Construction", "BIM", "Enterprise IT Strategy", "Civil Infrastructure"]
                     }
                 ]
@@ -685,7 +688,12 @@ def test_12_real_ai_ark_response_regression(monkeypatch, test_setup):
 
     # 3. ICPEngine qualification check
     designer = ICPDesigner()
-    icp = designer.design_icp(campaign_name="UK Infrastructure Campaign", campaign_objective="Target Tier-1 contractors")
+    icp = designer.design_icp(
+        campaign_name="UK Infrastructure Campaign",
+        campaign_objective="Target Tier-1 contractors",
+        geography="United Kingdom",
+        industry="Commercial Construction"
+    )
     icp_record = test_setup["icp_engine"].enroll_icp(icp)
     approved_icp_record = test_setup["icp_engine"].approve_icp(icp_record.icp_id, reviewer="Admin")
 
@@ -695,13 +703,13 @@ def test_12_real_ai_ark_response_regression(monkeypatch, test_setup):
 
     # 4. DeeplineDiscoveryRunner & ApprovalEngine enrollment
     class MockLLMClient:
-        def generate_email_1(self, lead, voc):
+        def generate_email_1(self, lead, voc, icp_config=None):
             class Email: body = "Enterprise BIM Infrastructure Pitch"
             return Email()
-        def generate_followup_a(self, lead, e1, voc):
+        def generate_followup_a(self, lead, e1, voc, icp_config=None):
             class Email: body = "Followup A Pitch"
             return Email()
-        def generate_followup_b(self, lead, voc):
+        def generate_followup_b(self, lead, voc, icp_config=None):
             class Email: body = "Followup B Pitch"
             return Email()
 

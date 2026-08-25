@@ -34,14 +34,14 @@ class ICPDesigner:
         self,
         campaign_name: str,
         campaign_objective: str,
-        product_context: str = "Aedrix is a modular construction management SaaS platform for UK main contractors covering pre-construction document control, drawing versioning, site manpower tracking, and commercial control.",
-        geography: Optional[str] = "United Kingdom",
-        industry: Optional[str] = "Construction, Commercial & Industrial Building, Infrastructure",
-        company_size: Optional[str] = "50+ employees or £10M+ annual revenue",
+        product_context: Optional[str] = None,
+        geography: Optional[str] = None,
+        industry: Optional[str] = None,
+        company_size: Optional[str] = None,
         target_personas: Optional[List[str]] = None,
-        minimum_employees: Optional[int] = 50,
+        minimum_employees: Optional[int] = 10,
         maximum_employees: Optional[int] = None,
-        minimum_revenue: Optional[float] = 10.0,
+        minimum_revenue: Optional[float] = None,
         maximum_revenue: Optional[float] = None,
         positive_signals: Optional[List[str]] = None,
         negative_signals: Optional[List[str]] = None,
@@ -49,6 +49,12 @@ class ICPDesigner:
         campaign_exclusions: Optional[List[str]] = None,
         voc_context: Optional[str] = None,
         campaign_id: Optional[str] = None,
+        product_or_service: Optional[str] = None,
+        value_proposition: Optional[str] = None,
+        offer: Optional[str] = None,
+        cta: Optional[str] = None,
+        company_name: Optional[str] = None,
+        sender_name: Optional[str] = None,
     ) -> ICPConfig:
         """
         Converts user campaign requirements into a structured ICPConfig.
@@ -58,15 +64,17 @@ class ICPDesigner:
         cid = campaign_id or f"camp_{re.sub(r'[^a-zA-Z0-9_]', '_', campaign_name.lower())[:24]}"
         icp_id = f"icp_{cid}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
+        prod_ctx = product_or_service or product_context or campaign_objective
+
         return self._generate_offline_icp(
             icp_id=icp_id,
             campaign_id=cid,
             campaign_name=campaign_name,
             campaign_objective=campaign_objective,
-            product_context=product_context,
-            geography=geography or "United Kingdom",
-            industry=industry or "Construction",
-            company_size=company_size or "50+ employees or £10M+ revenue",
+            product_context=prod_ctx,
+            geography=geography or "Global",
+            industry=industry or "Technology",
+            company_size=company_size or "10+ employees",
             target_personas=target_personas,
             minimum_employees=minimum_employees,
             maximum_employees=maximum_employees,
@@ -77,6 +85,12 @@ class ICPDesigner:
             hard_disqualifiers=hard_disqualifiers,
             campaign_exclusions=campaign_exclusions,
             voc_context=voc_context,
+            product_or_service=prod_ctx,
+            value_proposition=value_proposition or voc_context or prod_ctx,
+            offer=offer,
+            cta=cta,
+            company_name=company_name,
+            sender_name=sender_name,
         )
 
     def _build_designer_prompt(
@@ -229,7 +243,6 @@ class ICPDesigner:
             updated_at=datetime.now(timezone.utc).isoformat(),
             status=ICPStatus.PENDING_REVIEW
         )
-
     def _generate_offline_icp(
         self,
         icp_id: str,
@@ -247,27 +260,68 @@ class ICPDesigner:
         maximum_revenue: Optional[float],
         positive_signals: Optional[List[str]],
         negative_signals: Optional[List[str]],
-        hard_disqualifiers: Optional[List[str]],
-        campaign_exclusions: Optional[List[str]],
-        voc_context: Optional[str],
+        hard_disqualifiers: Optional[List[str]] = None,
+        campaign_exclusions: Optional[List[str]] = None,
+        voc_context: Optional[str] = None,
+        product_or_service: Optional[str] = None,
+        value_proposition: Optional[str] = None,
+        offer: Optional[str] = None,
+        cta: Optional[str] = None,
+        company_name: Optional[str] = None,
+        sender_name: Optional[str] = None,
     ) -> ICPConfig:
         """Deterministic high-fidelity offline ICP generator."""
-        personas = target_personas or [
-            "Digital Director",
-            "IT Director",
-            "Operations Director",
-            "Business Improvement Director",
-            "Chief Information Officer (CIO)",
-            "Head of Digital Construction",
-        ]
+        import re
+        raw_p_list = target_personas if target_personas else ["Director", "Manager", "Head", "Vice President", "Executive"]
+        clean_personas = []
+        title_keywords = []
+        for p in raw_p_list:
+            clean_p = re.sub(r'\s*\([^)]*\)', '', str(p)).strip()
+            if clean_p:
+                clean_personas.append(clean_p)
+                for word in clean_p.lower().split():
+                    if len(word) > 2 and word not in title_keywords:
+                        title_keywords.append(word)
 
-        title_keywords = [
-            "digital", "it director", "operations", "business improvement",
-            "cio", "cdo", "head of digital", "transformation", "bim"
-        ]
+        if not clean_personas:
+            clean_personas = ["Director", "Executive"]
+        if not title_keywords:
+            title_keywords = ["director", "head", "vp", "chief", "manager"]
 
-        industries_list = [i.strip() for i in industry.split(",") if i.strip()] if isinstance(industry, str) else ["Construction", "Commercial Building", "Infrastructure"]
-        allowed_kw = ["construction", "contractor", "building", "civil engineering", "infrastructure", "engineering"]
+        # Parse geography into allowed_country_keywords
+        geo_str = geography or "Global"
+        allowed_country_kw = []
+        for term in re.split(r'[\n,;]+', geo_str):
+            clean_t = term.strip().upper()
+            if clean_t and clean_t not in allowed_country_kw:
+                allowed_country_kw.append(clean_t)
+        if "UK" in allowed_country_kw or "UNITED KINGDOM" in allowed_country_kw:
+            for uk_term in ["UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB", "GBR"]:
+                if uk_term not in allowed_country_kw:
+                    allowed_country_kw.append(uk_term)
+        if not allowed_country_kw:
+            allowed_country_kw = [geo_str.upper()]
+
+        # Parse industry into allowed_industry_keywords
+        ind_str = industry or "Technology"
+        industries_list = [i.strip() for i in re.split(r'[\n,;/]+', ind_str) if i.strip()]
+        if not industries_list:
+            industries_list = [ind_str]
+
+        allowed_ind_kw = []
+        for ind_item in industries_list:
+            for word in ind_item.lower().split():
+                if len(word) > 2 and word not in allowed_ind_kw:
+                    allowed_ind_kw.append(word)
+        if not allowed_ind_kw:
+            allowed_ind_kw = [ind_str.lower()]
+
+        disallowed_ind_kw = []
+        if negative_signals:
+            for ns in negative_signals:
+                for word in str(ns).lower().split():
+                    if len(word) > 3 and word not in disallowed_ind_kw:
+                        disallowed_ind_kw.append(word)
 
         hard_rules = [
             HardDisqualificationRule(
@@ -282,14 +336,9 @@ class ICPDesigner:
             ),
             HardDisqualificationRule(
                 code="UNDER_SIZE_THRESHOLD",
-                description=f"Company has fewer than {minimum_employees or 50} employees and revenue under £{minimum_revenue or 10.0}M.",
+                description=f"Company has fewer than {minimum_employees or 10} employees.",
                 field="company_size"
             ),
-            HardDisqualificationRule(
-                code="OUT_OF_SCOPE_BUSINESS_MODEL",
-                description="Business model lacks project or operational document complexity.",
-                field="business_model"
-            )
         ]
         if hard_disqualifiers:
             for hd in hard_disqualifiers:
@@ -334,21 +383,18 @@ class ICPDesigner:
                 )
 
         pos_signals = positive_signals or [
-            "Digital transformation or BIM adoption roadmap",
-            "Multi-site regional contractor operations",
-            "Document versioning or site coordination complexity",
-            "Recent key IT / Operations leadership hire",
+            f"Active business operations within {geography}",
+            f"Target decision maker persona match within {industry}",
         ]
 
         neg_signals = negative_signals or [
-            "Single-site residential micro-contractor",
-            "Pure software vendor or IT consultancy",
-            "Zero active commercial or civil building projects",
+            "Out of scope business model",
+            "Under minimum employee threshold",
         ]
 
         reasoning = (
             f"Derived criteria to maximize relevance for '{campaign_name}'. Focuses on organizations in {geography} "
-            f"within {industry} possessing scale ({company_size}) with verified complexity signals."
+            f"within {industry} possessing scale ({company_size}) with verified decision maker signals."
         )
 
         return ICPConfig(
@@ -359,28 +405,34 @@ class ICPDesigner:
             campaign_description=campaign_objective,
             geography=GeographyConfig(
                 primary_country=geography,
-                allowed_country_keywords=["UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB", "GBR"] if "uk" in geography.lower() else [geography.upper()],
+                allowed_country_keywords=allowed_country_kw,
                 require_target_country_operating=True
             ),
             industries=industries_list,
-            allowed_industry_keywords=allowed_kw,
-            disallowed_industry_keywords=["pure software", "retail only", "hospitality only", "consumer goods"],
+            allowed_industry_keywords=allowed_ind_kw,
+            disallowed_industry_keywords=disallowed_ind_kw,
             company_size=company_size,
-            minimum_employees=minimum_employees or 50,
+            minimum_employees=minimum_employees or 10,
             maximum_employees=maximum_employees,
-            minimum_revenue=minimum_revenue or 10.0,
+            minimum_revenue=minimum_revenue or 0.0,
             maximum_revenue=maximum_revenue,
-            target_personas=personas,
+            target_personas=clean_personas,
             persona_title_keywords=title_keywords,
             positive_signals=pos_signals,
             negative_signals=neg_signals,
             hard_disqualifiers=hard_rules,
             campaign_exclusions=camp_rules,
-            required_conditions=[f"Must operate in {geography}", f"Minimum {minimum_employees or 50} employees or £{minimum_revenue or 10.0}M revenue"],
-            preferred_conditions=["Active digital transformation initiatives", "Document control complexity"],
+            required_conditions=[f"Must operate in {geography}", f"Minimum {minimum_employees or 10} employees"],
+            preferred_conditions=["Active growth initiatives", "Identifiable decision maker"],
             scoring_weights=ScoringWeights(),
             source_context=campaign_objective,
             voc_context=voc_context,
+            product_or_service=product_or_service or product_context,
+            value_proposition=value_proposition or voc_context or product_context or campaign_objective,
+            offer=offer,
+            cta=cta,
+            company_name=company_name,
+            sender_name=sender_name,
             reasoning=reasoning,
             created_at=datetime.now(timezone.utc).isoformat(),
             updated_at=datetime.now(timezone.utc).isoformat(),

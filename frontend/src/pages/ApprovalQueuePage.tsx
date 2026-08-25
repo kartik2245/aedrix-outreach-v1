@@ -54,6 +54,16 @@ export const ApprovalQueuePage: React.FC<ApprovalQueuePageProps> = ({
     }
   };
 
+  const handleApproveEmailStatus = async (leadId: string) => {
+    try {
+      const res = await api.approveEmailStatus(leadId, 'HUMAN_OPERATOR');
+      showToast('success', res.message);
+      onRefresh();
+    } catch (err: any) {
+      showToast('error', `Email status approval failed: ${err.message}`);
+    }
+  };
+
   const openEditModal = (r: ApprovalRecord) => {
     setSelectedRecord(r);
     setEditEmail1(r.edited_email_1 || r.email_1_original);
@@ -147,6 +157,8 @@ export const ApprovalQueuePage: React.FC<ApprovalQueuePageProps> = ({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {filtered.map((record) => {
+            const rawEmailStatus = (record.email_status || record.metadata?.email_status || (record.email && record.email.includes('@') ? 'VERIFIED' : 'NO_EMAIL')).toUpperCase();
+            const isNoEmail = rawEmailStatus === 'NO_EMAIL' || rawEmailStatus === 'NO_EMAIL_PERSISTED' || record.approval_stage === 'NO_SEND' || !record.email;
             const activeEmail1 = record.edited_email_1 || record.email_1_original;
             const isEdited = !!record.edited_email_1;
 
@@ -155,8 +167,10 @@ export const ApprovalQueuePage: React.FC<ApprovalQueuePageProps> = ({
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>{record.company}</span>
+                      <Badge type="icp" value={record.qualification_status} />
+                      <Badge type="email_status" value={rawEmailStatus} />
                       <Badge type="priority" value={record.priority} />
                       <Badge type="approval" value={record.approval_status} />
                       <Badge type="personalization" value={record.personalization_status} />
@@ -165,25 +179,73 @@ export const ApprovalQueuePage: React.FC<ApprovalQueuePageProps> = ({
                           Smartlead Eligible
                         </span>
                       )}
+                      {isNoEmail && (
+                        <span style={{ fontSize: '0.72rem', background: 'rgba(156, 163, 175, 0.15)', color: '#9ca3af', padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(156, 163, 175, 0.3)', fontWeight: 600 }}>
+                          No Email Persisted — Excluded from Outreach
+                        </span>
+                      )}
                     </div>
+
+                    {isNoEmail && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#9ca3af', margin: '4px 0 6px 0', fontWeight: 600 }}>
+                        <AlertTriangle size={14} />
+                        <span>
+                          Delivery Safety Block: {record.blocked_reason || 'No usable work email discovered'}
+                        </span>
+                      </div>
+                    )}
+
+                    {!isNoEmail && record.approval_status === 'BLOCKED' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#ef4444', margin: '4px 0 6px 0', fontWeight: 600 }}>
+                        <AlertTriangle size={14} />
+                        <span>
+                          Delivery Safety Block: {record.blocked_reason || 'Email address invalid/bounced or compliance blocked'}
+                        </span>
+                      </div>
+                    )}
+
+                    {!isNoEmail && record.approval_status !== 'BLOCKED' && record.qualification_status !== 'QUALIFIED' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#f59e0b', margin: '4px 0 6px 0', fontWeight: 600 }}>
+                        <AlertTriangle size={14} />
+                        <span>
+                          ICP Qualification: {record.qualification_status}
+                          {record.blocked_reason || record.metadata?.disqualification_reason ? ` — ${record.blocked_reason || record.metadata?.disqualification_reason}` : ''}
+                        </span>
+                      </div>
+                    )}
+
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                      <strong>{record.contact}</strong> ({record.title}) • <span style={{ fontFamily: 'var(--font-mono)' }}>{record.email}</span>
+                      <strong>{record.contact}</strong> ({record.title}) •{' '}
+                      {isNoEmail ? (
+                        <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>No email discovered</span>
+                      ) : (
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>{record.email}</span>
+                      )}
                     </div>
                   </div>
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    {record.approval_status !== 'APPROVED' && (
+                    {record.approval_stage === 'EMAIL_STATUS_APPROVAL' && record.approval_status !== 'REJECTED' && (
+                      <button className="btn btn-warning" style={{ background: '#f59e0b', borderColor: '#d97706', color: '#fff' }} onClick={() => handleApproveEmailStatus(record.lead_id)}>
+                        <CheckCircle size={14} />
+                        <span>Approve Email & Generate Copy</span>
+                      </button>
+                    )}
+
+                    {record.approval_stage !== 'EMAIL_STATUS_APPROVAL' && record.approval_status !== 'APPROVED' && record.approval_stage !== 'NO_SEND' && !isNoEmail && (
                       <button className="btn btn-success" onClick={() => handleApprove(record.lead_id)}>
                         <CheckCircle size={14} />
                         <span>Approve</span>
                       </button>
                     )}
 
-                    <button className="btn btn-outline" onClick={() => openEditModal(record)}>
-                      <Edit3 size={14} />
-                      <span>Edit</span>
-                    </button>
+                    {!isNoEmail && (
+                      <button className="btn btn-outline" onClick={() => openEditModal(record)}>
+                        <Edit3 size={14} />
+                        <span>Edit</span>
+                      </button>
+                    )}
 
                     {record.approval_status !== 'REJECTED' && (
                       <button className="btn btn-outline" onClick={() => openRejectModal(record)}>
@@ -208,7 +270,17 @@ export const ApprovalQueuePage: React.FC<ApprovalQueuePageProps> = ({
 
                 {/* Email 1 Preview */}
                 <div style={{ background: 'var(--bg-input)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', fontSize: '0.84rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--text-main)' }}>
-                  {activeEmail1}
+                  {record.approval_stage === 'EMAIL_STATUS_APPROVAL' ? (
+                    <span style={{ color: '#f59e0b', fontWeight: 500 }}>
+                      🟡 <strong>Pending Email Status Approval</strong>: AI email copy generation is deferred until email status is approved. Click <strong>[Approve Email & Generate Copy]</strong> above to generate personalized outreach.
+                    </span>
+                  ) : isNoEmail ? (
+                    <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                      ⚪ <strong>No Email Discovered</strong>: Lead is preserved in database for record keeping. AI email generation and Smartlead outreach are bypassed.
+                    </span>
+                  ) : (
+                    activeEmail1 || <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>No AI email draft generated yet.</span>
+                  )}
                 </div>
 
                 {/* Footer notes */}

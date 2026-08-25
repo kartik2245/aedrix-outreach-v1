@@ -63,35 +63,37 @@ class ApprovalRepository:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> EmailApproval:
         """Atomic evaluation and enrollment of a lead draft into the Human Approval Gate."""
-        is_hard_disqualified = qualification_status in ("HARD_DISQUALIFIED", "DisqualificationStatus.HARD_DISQUALIFIED")
-        is_campaign_excluded = qualification_status in ("CAMPAIGN_EXCLUDED", "DisqualificationStatus.CAMPAIGN_EXCLUDED")
+        meta = dict(metadata or {})
         is_invalid_email = email_status in ("INVALID_BOUNCED", "EmailStatus.INVALID_BOUNCED")
+        is_compliance_blocked = meta.get("is_global_suppressed") is True or meta.get("is_compliance_blocked") is True or meta.get("is_opt_out") is True or "suppression" in str(disqualification_reason or "").lower() or "opt-out" in str(disqualification_reason or "").lower()
         is_qa_failed = qa_status == "FAIL"
 
         blocked_reason: Optional[str] = None
-        if is_hard_disqualified:
+        if is_invalid_email:
             status = ApprovalStatus.BLOCKED.value
-            blocked_reason = disqualification_reason or "Account is HARD_DISQUALIFIED by ICP Engine."
-        elif is_campaign_excluded:
+            blocked_reason = "Email address is marked INVALID_BOUNCED or missing."
+        elif is_compliance_blocked:
             status = ApprovalStatus.BLOCKED.value
-            blocked_reason = disqualification_reason or "Account is CAMPAIGN_EXCLUDED."
-        elif is_invalid_email:
-            status = ApprovalStatus.BLOCKED.value
-            blocked_reason = "Email address is marked INVALID_BOUNCED."
+            blocked_reason = disqualification_reason or "Contact/domain is listed on global suppression or compliance opt-out list."
         elif is_qa_failed:
             status = ApprovalStatus.BLOCKED.value
             blocked_reason = f"Personalization QA failed: {', '.join(qa_reasons or [])}"
         else:
             status = ApprovalStatus.PENDING_REVIEW.value
+            if disqualification_reason:
+                blocked_reason = disqualification_reason
 
         flag_no_strong_signal = personalization_status in ("NO_STRONG_SIGNAL", "PersonalizationNoteStatus.NO_STRONG_SIGNAL")
 
         existing = self.session.scalar(select(EmailApproval).where(EmailApproval.lead_id == lead_id))
         if existing:
-            # Preserve approved status if not hard disqualified
-            if existing.approval_status in (ApprovalStatus.APPROVED.value, ApprovalStatus.EDITED.value, ApprovalStatus.REJECTED.value) and not (is_hard_disqualified or is_campaign_excluded or is_invalid_email):
+            # Preserve approved status if not delivery/compliance safety blocked
+            if existing.approval_status in (ApprovalStatus.APPROVED.value, ApprovalStatus.EDITED.value, ApprovalStatus.REJECTED.value) and not (is_invalid_email or is_compliance_blocked or is_qa_failed):
                 status = existing.approval_status
-                blocked_reason = existing.blocked_reason
+                if existing.approval_status != ApprovalStatus.APPROVED.value:
+                    blocked_reason = existing.blocked_reason
+                else:
+                    blocked_reason = None
 
             existing.approval_status = status
             existing.smartlead_eligible = (status == ApprovalStatus.APPROVED.value)
@@ -130,14 +132,103 @@ class ApprovalRepository:
         if not approval:
             raise ValueError(f"Approval record for lead '{lead_id}' not found.")
 
-        if approval.approval_status == ApprovalStatus.BLOCKED.value:
-            raise ValueError(f"Cannot approve blocked lead '{lead_id}': {approval.blocked_reason}")
+        lead = approval.lead
+        draft = lead.email_draft if lead else None
+        meta = approval.metadata_json or {}
+
+        is_invalid_email = (lead and lead.email_status in ("INVALID_BOUNCED", "EmailStatus.INVALID_BOUNCED")) or not lead or not lead.email or "@" not in lead.email
+        is_compliance_blocked = meta.get("is_global_suppressed") is True or meta.get("is_compliance_blocked") is True or meta.get("is_opt_out") is True
+
+        if is_invalid_email or is_compliance_blocked:
+            approval.approval_status = ApprovalStatus.BLOCKED.value
+            approval.smartlead_eligible = False
+            reason = "Email address is invalid/bounced" if is_invalid_email else "Suppression/opt-out compliance block"
+            approval.blocked_reason = reason
+            self.session.flush()
+            raise ValueError(f"Cannot approve delivery-blocked lead '{lead_id}': {reason}")
+
+        # Post-Approval AI Copy Generation Trigger
+        if draft and (not draft.ai_original_email_1 or draft.qa_status == "PENDING_AI_GENERATION"):
+            try:
+                from src.integrations.claude_client import ClaudeClient
+                from src.personalization.voc_engine import VoCEngine
+                from src.personalization.personalization_qa import PersonalizationQA
+                from src.lead_intelligence import (
+                    LeadIntelligenceOutput, PriorityLevel, EvidenceLevel,
+                    PersonalizationNoteStatus, AccessibilityTier, EmailStatus, DisqualificationStatus
+                )
+
+                client = ClaudeClient()
+                voc_engine = VoCEngine()
+                qa_engine = PersonalizationQA()
+
+                qual_val = lead.qualification_status if lead else "QUALIFIED"
+                qual_st = DisqualificationStatus(qual_val) if qual_val in [e.value for e in DisqualificationStatus] else DisqualificationStatus.QUALIFIED
+
+                intel = LeadIntelligenceOutput(
+                    company_name=lead.company_name if lead else "Unknown",
+                    company_domain=lead.company_domain or "example.com",
+                    contact_name=lead.contact_name if lead else "Unknown",
+                    job_title=lead.job_title if lead else "Decision Maker",
+                    email=lead.email if lead else "",
+                    email_status=EmailStatus.VERIFIED if lead and lead.email and "@" in lead.email else EmailStatus.NO_EMAIL,
+                    company_size=lead.company_size if (lead and lead.company_size) else "50 employees",
+                    company_size_evidence=EvidenceLevel.VERIFIED,
+                    industry=lead.industry if (lead and lead.industry) else "Technology",
+                    opportunity_score=lead.opportunity_score if lead else 70.0,
+                    accessibility_score=lead.accessibility_score if lead else 70.0,
+                    outreach_priority_index=lead.outreach_priority_index if lead else 70.0,
+                    priority_level=PriorityLevel(lead.priority_level) if lead and lead.priority_level in [e.value for e in PriorityLevel] else PriorityLevel.P2,
+                    opportunity_tier="Tier 1",
+                    accessibility_tier=AccessibilityTier.HIGH,
+                    disqualification_status=qual_st,
+                    disqualification_reason=lead.disqualification_reason if lead else None,
+                    personalization_note_status=PersonalizationNoteStatus.SIGNAL_VERIFIED if lead and lead.personalization_note else PersonalizationNoteStatus.NO_STRONG_SIGNAL,
+                    personalization_note=lead.personalization_note if lead else "Target lead.",
+                    research_sources=["Lead Ingestion"],
+                    ICP_score=lead.opportunity_score if lead else 70.0,
+                    pain_point="Operational efficiency.",
+                    pain_point_evidence=EvidenceLevel.INFERRED,
+                    relevant_signal=lead.personalization_note if lead else "Verified target lead.",
+                    relevant_signal_evidence=EvidenceLevel.VERIFIED,
+                    persona_selection_rationale=f"Selected {lead.job_title if lead else 'Decision Maker'} as primary decision maker."
+                )
+
+                voc = voc_engine.map_lead_voc(intel)
+                e1 = client.generate_email_1(intel, voc)
+                fa = client.generate_followup_a(intel, e1, voc)
+                fb = client.generate_followup_b(intel, voc)
+
+                e1_body = getattr(e1, "body", str(e1))
+                fa_body = getattr(fa, "body", str(fa))
+                fb_body = getattr(fb, "body", str(fb))
+
+                qa_res = qa_engine.validate_lead_drafts(lead_intel=intel, email_1=e1_body, followup_a=fa_body, followup_b=fb_body)
+
+                draft.ai_original_email_1 = e1_body
+                draft.ai_original_followup_a = fa_body
+                draft.ai_original_followup_b = fb_body
+                draft.qa_status = qa_res.qa_status
+                draft.qa_reasons = qa_res.qa_reasons
+            except Exception as gen_err:
+                draft.qa_status = "FAIL"
+                draft.qa_reasons = [f"AI_GENERATION_FAILED: {str(gen_err)}"]
+
+        is_qa_failed = draft and draft.qa_status == "FAIL"
+        if is_qa_failed:
+            approval.approval_status = ApprovalStatus.BLOCKED.value
+            approval.smartlead_eligible = False
+            reason = f"QA failed: {', '.join(draft.qa_reasons or [])}"
+            approval.blocked_reason = reason
+            self.session.flush()
+            raise ValueError(f"Cannot approve delivery-blocked lead '{lead_id}': {reason}")
 
         now_dt = datetime.now(timezone.utc)
         approval.approval_status = ApprovalStatus.APPROVED.value
         approval.smartlead_eligible = True
         approval.reviewer = reviewer
         approval.reviewed_at = now_dt
+        approval.blocked_reason = None
 
         audit = AuditLog(
             entity_type="LEAD",

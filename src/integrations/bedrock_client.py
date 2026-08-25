@@ -29,6 +29,7 @@ from src.models import (
     PersonalizationNoteStatus,
     VoCContext,
 )
+from src.utils.subject_sanitizer import sanitize_subject
 
 
 def load_env_file_if_present(env_path: Optional[str] = None, override: bool = False) -> None:
@@ -46,8 +47,12 @@ def load_env_file_if_present(env_path: Optional[str] = None, override: bool = Fa
                 k = k.strip()
                 v = v.strip().strip("'\"")
                 if k:
-                    if override or k not in os.environ:
-                        os.environ[k] = v
+                    if v:
+                        if override or k not in os.environ:
+                            os.environ[k] = v
+                    else:
+                        if k in os.environ and not os.environ[k].strip():
+                            os.environ.pop(k, None)
 
 
 class BedrockClient:
@@ -64,7 +69,8 @@ class BedrockClient:
         self.provider = os.getenv("LLM_PROVIDER", "aws_bedrock")
         self.region = region or os.getenv("AWS_REGION", "ap-south-1")
         self.model = model or os.getenv("LLM_MODEL", "deepseek.v3.2")
-        self.bearer_token = bearer_token or os.getenv("AWS_BEARER_TOKEN_BEDROCK")
+        raw_bearer = bearer_token or os.getenv("AWS_BEARER_TOKEN_BEDROCK")
+        self.bearer_token = raw_bearer.strip() if raw_bearer and raw_bearer.strip() else None
 
         env_dry_run = os.getenv("DRY_RUN", "true").lower() in ("true", "1", "yes")
         self.dry_run = dry_run if dry_run is not None else env_dry_run
@@ -79,6 +85,9 @@ class BedrockClient:
         try:
             import boto3
 
+            if "AWS_BEARER_TOKEN_BEDROCK" in os.environ and not os.environ["AWS_BEARER_TOKEN_BEDROCK"].strip():
+                os.environ.pop("AWS_BEARER_TOKEN_BEDROCK", None)
+
             session_kwargs = {"region_name": self.region}
             aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
             aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -89,6 +98,17 @@ class BedrockClient:
                 session_kwargs["aws_secret_access_key"] = aws_secret_key
                 if aws_session_token:
                     session_kwargs["aws_session_token"] = aws_session_token
+            else:
+                # Resolve credentials from boto3 Session (shared credentials file / profile / IAM)
+                boto_session = boto3.Session(region_name=self.region)
+                creds = boto_session.get_credentials()
+                if creds:
+                    frozen = creds.get_frozen_credentials()
+                    if frozen and frozen.access_key and frozen.secret_key:
+                        session_kwargs["aws_access_key_id"] = frozen.access_key
+                        session_kwargs["aws_secret_access_key"] = frozen.secret_key
+                        if frozen.token:
+                            session_kwargs["aws_session_token"] = frozen.token
 
             client = boto3.client("bedrock-runtime", **session_kwargs)
 
@@ -163,12 +183,13 @@ class BedrockClient:
         self,
         lead_intel: LeadIntelligenceOutput,
         voc_context: Optional[VoCContext] = None,
+        icp_config: Optional[Any] = None,
     ) -> EmailGenerationResult:
         """Generates Email 1 using DeepSeek V3.2 via AWS Bedrock Converse API (Max 120 words)."""
-        prompt = self._build_email_1_prompt(lead_intel, voc_context)
+        prompt = self._build_email_1_prompt(lead_intel, voc_context, icp_config=icp_config)
 
         if self.dry_run or not self.client:
-            return self._generate_offline_email_1(lead_intel, voc_context)
+            return self._generate_offline_email_1(lead_intel, voc_context, icp_config=icp_config)
 
         try:
             raw_text = self.invoke_bedrock_converse(
@@ -179,7 +200,10 @@ class BedrockClient:
             )
             parsed = self.parse_json_response(raw_text)
             body = parsed.get("body", "").strip()
-            subject = parsed.get("subject", f"Pre-construction document control at {lead_intel.company_name}").strip()
+            raw_subject = parsed.get("subject", "").strip()
+            voc_angle = voc_context.voc_angle if voc_context and voc_context.voc_angle else f"{lead_intel.industry} Operations"
+            prod = getattr(voc_context, "product_or_service", None) or getattr(icp_config, "product_or_service", None) or lead_intel.industry
+            subject = sanitize_subject(raw_subject, company_name=lead_intel.company_name, product_or_industry=prod, voc_angle=voc_angle, email_type="EMAIL_1", max_words=6)
             word_count = len(body.split())
 
             return EmailGenerationResult(
@@ -193,19 +217,20 @@ class BedrockClient:
             )
         except Exception:
             # Fall back safely if API call fails
-            return self._generate_offline_email_1(lead_intel, voc_context)
+            return self._generate_offline_email_1(lead_intel, voc_context, icp_config=icp_config)
 
     def generate_followup_a(
         self,
         lead_intel: LeadIntelligenceOutput,
         email_1: EmailGenerationResult,
         voc_context: Optional[VoCContext] = None,
+        icp_config: Optional[Any] = None,
     ) -> EmailGenerationResult:
         """Generates Follow-up A using DeepSeek V3.2 via AWS Bedrock Converse API (Max 90 words)."""
-        prompt = self._build_followup_a_prompt(lead_intel, email_1, voc_context)
+        prompt = self._build_followup_a_prompt(lead_intel, email_1, voc_context, icp_config=icp_config)
 
         if self.dry_run or not self.client:
-            return self._generate_offline_followup_a(lead_intel, email_1, voc_context)
+            return self._generate_offline_followup_a(lead_intel, email_1, voc_context, icp_config=icp_config)
 
         try:
             raw_text = self.invoke_bedrock_converse(
@@ -216,7 +241,9 @@ class BedrockClient:
             )
             parsed = self.parse_json_response(raw_text)
             body = parsed.get("body", "").strip()
-            subject = parsed.get("subject", f"Re: {email_1.subject}").strip()
+            raw_subject = parsed.get("subject", f"Re: {email_1.subject}").strip()
+            prod = getattr(voc_context, "product_or_service", None) or getattr(icp_config, "product_or_service", None) or lead_intel.industry
+            subject = sanitize_subject(raw_subject, company_name=lead_intel.company_name, product_or_industry=prod, voc_angle=getattr(voc_context, "voc_angle", None), email_type="FOLLOWUP_A", max_words=6)
             word_count = len(body.split())
 
             return EmailGenerationResult(
@@ -229,18 +256,19 @@ class BedrockClient:
                 generation_mode="BEDROCK_DEEPSEEK_API"
             )
         except Exception:
-            return self._generate_offline_followup_a(lead_intel, email_1, voc_context)
+            return self._generate_offline_followup_a(lead_intel, email_1, voc_context, icp_config=icp_config)
 
     def generate_followup_b(
         self,
         lead_intel: LeadIntelligenceOutput,
         voc_context: Optional[VoCContext] = None,
+        icp_config: Optional[Any] = None,
     ) -> EmailGenerationResult:
         """Generates Follow-up B using DeepSeek V3.2 via AWS Bedrock Converse API (Max 90 words)."""
-        prompt = self._build_followup_b_prompt(lead_intel, voc_context)
+        prompt = self._build_followup_b_prompt(lead_intel, voc_context, icp_config=icp_config)
 
         if self.dry_run or not self.client:
-            return self._generate_offline_followup_b(lead_intel, voc_context)
+            return self._generate_offline_followup_b(lead_intel, voc_context, icp_config=icp_config)
 
         try:
             raw_text = self.invoke_bedrock_converse(
@@ -251,7 +279,10 @@ class BedrockClient:
             )
             parsed = self.parse_json_response(raw_text)
             body = parsed.get("body", "").strip()
-            subject = parsed.get("subject", f"Real-time manpower & financial tracking for {lead_intel.company_name}").strip()
+            raw_subject = parsed.get("subject", "").strip()
+            voc_angle = voc_context.voc_angle if voc_context and voc_context.voc_angle else f"{lead_intel.industry} Operations"
+            prod = getattr(voc_context, "product_or_service", None) or getattr(icp_config, "product_or_service", None) or lead_intel.industry
+            subject = sanitize_subject(raw_subject, company_name=lead_intel.company_name, product_or_industry=prod, voc_angle=voc_angle, email_type="FOLLOWUP_B", max_words=6)
             word_count = len(body.split())
 
             return EmailGenerationResult(
@@ -264,7 +295,7 @@ class BedrockClient:
                 generation_mode="BEDROCK_DEEPSEEK_API"
             )
         except Exception:
-            return self._generate_offline_followup_b(lead_intel, voc_context)
+            return self._generate_offline_followup_b(lead_intel, voc_context, icp_config=icp_config)
 
     def parse_json_response(self, raw_text: str) -> Dict[str, str]:
         """Parses JSON from DeepSeek response, safely handling markdown wrappers."""
@@ -311,12 +342,15 @@ class BedrockClient:
         self,
         lead_intel: LeadIntelligenceOutput,
         voc_context: Optional[VoCContext],
+        icp_config: Optional[Any] = None,
     ) -> Dict[str, str]:
         """Constructs Zero-Hallucination Email 1 prompt for DeepSeek V3.2."""
+        brand = getattr(voc_context, "company_name", None) or getattr(icp_config, "company_name", None) or "Aedrix"
+        prod = getattr(voc_context, "product_or_service", None) or getattr(icp_config, "product_or_service", None) or getattr(voc_context, "aedrix_value_prop", None) or f"software and services for {lead_intel.industry} organizations"
+        cta_text = getattr(voc_context, "cta", None) or getattr(icp_config, "cta", None) or "Are you open to a brief 2-minute overview this week?"
+
         system_prompt = (
-            "You are a senior B2B cold outreach copywriter representing Aedrix (https://aedrix.com) — "
-            "a cloud-based construction management SaaS platform for UK main contractors covering "
-            "pre-construction document control, drawing versioning, site manpower tracking, and commercial control.\n\n"
+            f"You are a senior B2B cold outreach copywriter representing {brand} — {prod}.\n\n"
             "STRICT ZERO-HALLUCINATION & COPY CLEANLINESS RULES:\n"
             "1. Use ONLY the verified facts, signals, and personalization notes provided in the input JSON.\n"
             "2. NEVER invent company facts, achievements, projects, promotions, technologies, financial metrics, customer names, or dates.\n"
@@ -324,8 +358,8 @@ class BedrockClient:
             "4. NEVER output internal system codes, status enum names, or pipeline labels (such as NO_STRONG_SIGNAL, SIGNAL_VERIFIED, QUALIFIED, DISQUALIFIED, P1, P2, score values, or metadata keys) anywhere in the email body or subject.\n"
             "5. If research signal or personalization note is null or empty, write a clean, natural, professional baseline cold outreach email focusing on the contact's role, company, and industry challenges.\n"
             "6. Word count MUST NOT exceed 120 words.\n"
-            "7. Tone must be concise, professional, human, construction-industry aware, not generic AI spam.\n"
-            "8. End with a low-friction 2-minute overview CTA.\n"
+            f"7. Tone must be concise, professional, human, relevant to {lead_intel.industry}, not generic AI spam.\n"
+            f"8. End with a low-friction CTA: '{cta_text}'.\n"
             "9. Return ONLY a valid JSON object with 'subject' and 'body' keys."
         )
 
@@ -342,8 +376,8 @@ class BedrockClient:
             "has_verified_signal": bool(clean_signal),
             "verified_research_signals": clean_signal if clean_signal else None,
             "personalization_note": clean_note if clean_note else None,
-            "voc_angle": voc_context.voc_angle if voc_context else "Pre-construction document control",
-            "aedrix_value_prop": voc_context.aedrix_value_prop if voc_context else "Unifying pre-construction document control with real-time site manpower tracking."
+            "voc_angle": voc_context.voc_angle if voc_context else f"{lead_intel.industry} Operations",
+            "value_prop": voc_context.aedrix_value_prop if voc_context else f"{brand} supports {lead_intel.industry} teams."
         }
 
         user_prompt = (
@@ -359,19 +393,22 @@ class BedrockClient:
         lead_intel: LeadIntelligenceOutput,
         email_1: EmailGenerationResult,
         voc_context: Optional[VoCContext],
+        icp_config: Optional[Any] = None,
     ) -> Dict[str, str]:
         """Constructs Zero-Hallucination Follow-up A prompt for DeepSeek V3.2."""
+        brand = getattr(voc_context, "company_name", None) or getattr(icp_config, "company_name", None) or "Aedrix"
+        voc_angle = voc_context.voc_angle if voc_context else f"{lead_intel.industry} Operations"
         system_prompt = (
-            "You are a senior B2B cold outreach copywriter representing Aedrix. "
+            f"You are a senior B2B cold outreach copywriter representing {brand}. "
             "Write Follow-up A (opened Email 1 but did not reply). Max 90 words. "
-            "Never invent facts. Never output internal system codes or status labels (such as NO_STRONG_SIGNAL, SIGNAL_VERIFIED, QUALIFIED, P1, P2). "
+            "Never invent facts. Never output internal system codes or status labels. "
             "Return ONLY valid JSON with 'subject' and 'body'."
         )
         user_prompt = (
             f"Company: {lead_intel.company_name}\n"
             f"Contact: {lead_intel.contact_name}\n"
             f"Previous Email 1 Subject: {email_1.subject}\n"
-            f"VoC Angle: {voc_context.voc_angle if voc_context else 'Pre-construction document control'}\n"
+            f"VoC Angle: {voc_angle}\n"
             f"Generate Follow-up A under 90 words in JSON format: {{\"subject\": \"...\", \"body\": \"...\"}}"
         )
         return {"system": system_prompt, "user": user_prompt}
@@ -380,53 +417,110 @@ class BedrockClient:
         self,
         lead_intel: LeadIntelligenceOutput,
         voc_context: Optional[VoCContext],
+        icp_config: Optional[Any] = None,
     ) -> Dict[str, str]:
         """Constructs Zero-Hallucination Follow-up B prompt for DeepSeek V3.2."""
+        brand = getattr(voc_context, "company_name", None) or getattr(icp_config, "company_name", None) or "Aedrix"
+        voc_angle = voc_context.voc_angle if voc_context else f"{lead_intel.industry} Operations"
         system_prompt = (
-            "You are a senior B2B cold outreach copywriter representing Aedrix. "
-            "Write Follow-up B (unopened Email 1, pivoted angle to manpower & financial tracking). Max 90 words. "
-            "Never invent facts. Never output internal system codes or status labels (such as NO_STRONG_SIGNAL, SIGNAL_VERIFIED, QUALIFIED, P1, P2). "
+            f"You are a senior B2B cold outreach copywriter representing {brand}. "
+            f"Write Follow-up B (unopened Email 1, pivoted angle to {voc_angle}). Max 90 words. "
+            "Never invent facts. Never output internal system codes or status labels. "
             "Return ONLY valid JSON with 'subject' and 'body'."
         )
         user_prompt = (
             f"Company: {lead_intel.company_name}\n"
             f"Contact: {lead_intel.contact_name}\n"
-            f"Pivoted Angle: Real-Time Manpower & Financial Tracking\n"
+            f"Pivoted Angle: {voc_angle}\n"
             f"Generate Follow-up B under 90 words in JSON format: {{\"subject\": \"...\", \"body\": \"...\"}}"
         )
         return {"system": system_prompt, "user": user_prompt}
+
+    def _post_process_copy_compliance(
+        self,
+        body: str,
+        lead_intel: LeadIntelligenceOutput,
+        voc_context: Optional[VoCContext] = None,
+        icp_config: Optional[Any] = None,
+    ) -> str:
+        """
+        Guarantees:
+        1. Strips any internal system codes/labels (NO_STRONG_SIGNAL, SIGNAL_VERIFIED, HARD_DISQUALIFIED, etc.).
+        2. Ensures an approved signature exists.
+        3. Ensures the canonical unsubscribe footer exists with the lead's email address.
+        """
+        clean_body = body or ""
+
+        # Forbidden internal labels that must never leak to prospect
+        forbidden_labels = [
+            "NO_STRONG_SIGNAL",
+            "SIGNAL_VERIFIED",
+            "HARD_DISQUALIFIED",
+            "CAMPAIGN_EXCLUDED",
+            "INVALID_BOUNCED",
+        ]
+        for label in forbidden_labels:
+            if label.lower() in clean_body.lower():
+                clean_body = re.sub(re.escape(label), "", clean_body, flags=re.IGNORECASE).strip()
+
+        brand = getattr(voc_context, "company_name", None) or getattr(icp_config, "company_name", None) or "Aedrix"
+        sender = getattr(voc_context, "sender_name", None) or getattr(icp_config, "sender_name", None) or f"{brand} Team"
+        email_addr = (lead_intel.email or "contact@example.com").strip()
+        unsub_url = f"https://aedrix.com/unsubscribe?email={email_addr}"
+
+        body_lower = clean_body.lower()
+        has_sig = any(sig in clean_body for sig in ["Alex Mitchell", "Aedrix Team", "Best regards", "Outreach Manager"])
+        has_unsub = ("unsubscribe" in body_lower or "opt out" in body_lower) and ("https://" in body_lower or "aedrix.com" in body_lower or "click here" in body_lower or "reply unsubscribe" in body_lower)
+
+        if not has_sig:
+            clean_body = f"{clean_body.rstrip()}\n\nBest regards,\n{sender}"
+
+        if not has_unsub:
+            clean_body = f"{clean_body.rstrip()}\nOutreach Manager, {brand}\nTo unsubscribe, click here: {unsub_url}"
+
+        return clean_body
 
     def _generate_offline_email_1(
         self,
         lead_intel: LeadIntelligenceOutput,
         voc_context: Optional[VoCContext],
+        icp_config: Optional[Any] = None,
     ) -> EmailGenerationResult:
         """High-fidelity deterministic offline template generator."""
-        contact_first_name = (lead_intel.contact_name or "there").split(" ")[0]
+        contact_first_name = (lead_intel.contact_name or "there").strip().split(" ")[0]
+        if not contact_first_name or contact_first_name.lower() == "there":
+            contact_first_name = "there"
         company = lead_intel.company_name
+        brand = getattr(voc_context, "company_name", None) or getattr(icp_config, "company_name", None) or "Aedrix"
+        sender = getattr(voc_context, "sender_name", None) or getattr(icp_config, "sender_name", None) or f"{brand} Team"
+        cta_text = getattr(voc_context, "cta", None) or getattr(icp_config, "cta", None) or "Are you open to a brief 2-minute overview this week?"
+
         is_signal_verified = lead_intel.personalization_note_status == PersonalizationNoteStatus.SIGNAL_VERIFIED
 
         if is_signal_verified and lead_intel.personalization_note and lead_intel.personalization_note != "NO_STRONG_SIGNAL":
             personalization_text = lead_intel.personalization_note
             evidence_used = [lead_intel.relevant_signal or "Verified corporate signal"]
         else:
-            personalization_text = (
-                "Given your role leading operations across UK building projects, I thought you'd be "
-                "interested in how Aedrix unifies pre-construction document control directly with real-time site manpower tracking."
-            )
-            evidence_used = ["Baseline Aedrix Value Proposition"]
+            personalization_text = f"Given your role leading {lead_intel.job_title} operations at {company}, I thought you'd be interested in how {brand} supports {lead_intel.industry} teams."
+            evidence_used = ["Baseline Value Proposition"]
 
-        subject = "Pre-construction document control"
+        val_prop = (
+            getattr(voc_context, "aedrix_value_prop", None)
+            or getattr(icp_config, "value_proposition", None)
+            or f"{brand} provides solutions to streamline {lead_intel.industry} workflows."
+        )
+
+        voc_angle = getattr(voc_context, "voc_angle", None) or getattr(icp_config, "voc_context", None) or f"{lead_intel.industry} Operations"
+        prod = getattr(voc_context, "product_or_service", None) or getattr(icp_config, "product_or_service", None) or lead_intel.industry
+        subject = sanitize_subject(None, company_name=company, product_or_industry=prod, voc_angle=voc_angle, email_type="EMAIL_1", max_words=6)
         unsubscribe_url = f"https://aedrix.com/unsubscribe?email={lead_intel.email}"
         body = (
             f"Hi {contact_first_name},\n\n"
             f"{personalization_text}\n\n"
-            f"Managing subcontractor document versions across regional sites can create administrative latency. "
-            f"Aedrix unifies pre-construction document control directly with real-time site manpower tracking "
-            f"so your operational teams operate from a single source of truth.\n\n"
-            f"Are you open to a brief 2-minute overview this week?\n\nBest regards,\n\n"
-            f"Alex Mitchell\n"
-            f"Outreach Manager, Aedrix\n"
+            f"{val_prop}\n\n"
+            f"{cta_text}\n\nBest regards,\n\n"
+            f"{sender}\n"
+            f"Outreach Manager, {brand}\n"
             f"To unsubscribe, click here: {unsubscribe_url}"
         )
         word_count = len(body.split())
@@ -446,20 +540,27 @@ class BedrockClient:
         lead_intel: LeadIntelligenceOutput,
         email_1: EmailGenerationResult,
         voc_context: Optional[VoCContext],
+        icp_config: Optional[Any] = None,
     ) -> EmailGenerationResult:
         """Offline Follow-up A template."""
-        contact_first_name = (lead_intel.contact_name or "there").split(" ")[0]
+        contact_first_name = (lead_intel.contact_name or "there").strip().split(" ")[0]
+        if not contact_first_name or contact_first_name.lower() == "there":
+            contact_first_name = "there"
         company = lead_intel.company_name
+        brand = getattr(voc_context, "company_name", None) or getattr(icp_config, "company_name", None) or "Aedrix"
+        sender = getattr(voc_context, "sender_name", None) or getattr(icp_config, "sender_name", None) or f"{brand} Team"
+        voc_angle = getattr(voc_context, "voc_angle", None) or getattr(icp_config, "voc_context", None) or f"{lead_intel.industry} Operations"
+        prod = getattr(voc_context, "product_or_service", None) or getattr(icp_config, "product_or_service", None) or lead_intel.industry
 
-        subject = f"Re: {email_1.subject}"
+        subject = sanitize_subject(f"Re: {email_1.subject}", company_name=company, product_or_industry=prod, voc_angle=voc_angle, email_type="FOLLOWUP_A", max_words=6)
         unsubscribe_url = f"https://aedrix.com/unsubscribe?email={lead_intel.email}"
         body = (
             f"Hi {contact_first_name},\n\n"
-            f"Following up on my previous note regarding pre-construction document control for {company}.\n\n"
-            f"Given {company}'s focus on operational delivery across sites, I wanted to highlight how Aedrix specifically reduces document versioning errors across multi-site main contractor teams.\n\n"
+            f"Following up on my previous note regarding operations for {company}.\n\n"
+            f"Given {company}'s focus on operational delivery, I wanted to highlight how {brand} specifically helps teams in {lead_intel.industry}.\n\n"
             f"Would Thursday afternoon work for a quick conversation?\n\nBest regards,\n\n"
-            f"Alex Mitchell\n"
-            f"Outreach Manager, Aedrix\n"
+            f"{sender}\n"
+            f"Outreach Manager, {brand}\n"
             f"To unsubscribe, click here: {unsubscribe_url}"
         )
         word_count = len(body.split())
@@ -478,20 +579,27 @@ class BedrockClient:
         self,
         lead_intel: LeadIntelligenceOutput,
         voc_context: Optional[VoCContext],
+        icp_config: Optional[Any] = None,
     ) -> EmailGenerationResult:
         """Offline Follow-up B template."""
-        contact_first_name = (lead_intel.contact_name or "there").split(" ")[0]
+        contact_first_name = (lead_intel.contact_name or "there").strip().split(" ")[0]
+        if not contact_first_name or contact_first_name.lower() == "there":
+            contact_first_name = "there"
         company = lead_intel.company_name
+        brand = getattr(voc_context, "company_name", None) or getattr(icp_config, "company_name", None) or "Aedrix"
+        sender = getattr(voc_context, "sender_name", None) or getattr(icp_config, "sender_name", None) or f"{brand} Team"
+        val_prop = getattr(voc_context, "aedrix_value_prop", None) or getattr(icp_config, "value_proposition", None) or f"{brand} delivers operational efficiency solutions."
+        voc_angle = getattr(voc_context, "voc_angle", None) or getattr(icp_config, "voc_context", None) or f"{lead_intel.industry} Operations"
+        prod = getattr(voc_context, "product_or_service", None) or getattr(icp_config, "product_or_service", None) or lead_intel.industry
 
-        subject = "Real-time manpower and financial tracking"
+        subject = sanitize_subject(None, company_name=company, product_or_industry=prod, voc_angle=voc_angle, email_type="FOLLOWUP_B", max_words=6)
         unsubscribe_url = f"https://aedrix.com/unsubscribe?email={lead_intel.email}"
         body = (
             f"Hi {contact_first_name},\n\n"
-            f"Pivoting from my earlier message. Beyond document control, many established main contractors like {company} face challenges reconciling pre-construction estimates against live site manpower and financial expenditure.\n\n"
-            f"Aedrix provides a modular cloud platform that gives leadership real-time labor productivity visibility without requiring a complex IT overhaul.\n\n"
-            f"Would you be open to exploring how this fits your digital roadmap?\n\nBest regards,\n\n"
-            f"Alex Mitchell\n"
-            f"Outreach Manager, Aedrix\n"
+            f"Pivoting from my earlier message: {val_prop}\n\n"
+            f"Would you be open to exploring how this fits your operational roadmap?\n\nBest regards,\n\n"
+            f"{sender}\n"
+            f"Outreach Manager, {brand}\n"
             f"To unsubscribe, click here: {unsubscribe_url}"
         )
         word_count = len(body.split())
@@ -502,6 +610,6 @@ class BedrockClient:
             body=body,
             word_count=word_count,
             personalization_status=lead_intel.personalization_note_status,
-            evidence_used=["Pivoted Angle: Real-Time Manpower & Financial Control"],
+            evidence_used=["Pivoted Operational Angle"],
             generation_mode="DRY_RUN_TEMPLATE"
         )

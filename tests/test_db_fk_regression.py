@@ -341,7 +341,7 @@ def test_19_offline_e2e_db_fk_persistence_chain(tmp_path, monkeypatch):
                 "contact_name": "Sarah Lawton Clewlow",
                 "job_title": "Operations Director",
                 "email": "s.clewlow@barkersfencing.com",
-                "email_status": "PATTERN_CONFIRMED",
+                "email_status": "EVIDENCE_VERIFIED",
                 "linkedin_url": "https://linkedin.com/in/sarah-clewlow",
                 "relevant_signal": "Digital transformation & BIM adoption",
                 "pain_point": "Pre-construction document control risk"

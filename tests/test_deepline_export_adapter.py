@@ -123,7 +123,7 @@ def test_invalid_email_status_handling(adapter):
         "email_status": "SUPER_VERIFIED_100_PERCENT"
     }
     adapted = adapter.adapt_record(raw)
-    assert adapted["email_status_input"] == EmailStatus.PATTERN_CONFIRMED
+    assert adapted["email_status_input"] == EmailStatus.UNVERIFIED
     assert any("INVALID_EMAIL_STATUS" in w for w in adapted["adapter_audit"]["warnings"])
 
 

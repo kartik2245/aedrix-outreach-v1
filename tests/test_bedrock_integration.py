@@ -105,7 +105,7 @@ def test_mocked_bedrock_converse_api_call(sample_lead):
                 "content": [
                     {
                         "text": json.dumps({
-                            "subject": "Pre-construction document control at Kier Group plc",
+                            "subject": "Pre-construction control for Kier Group",
                             "body": "Hi Colin,\n\nSaw Kier's official Digital by Default strategy. Aedrix unifies document control directly with real-time site manpower tracking.\n\nOpen to a brief 2-minute overview?\n\nBest regards,\nAedrix Team"
                         })
                     }
@@ -118,7 +118,7 @@ def test_mocked_bedrock_converse_api_call(sample_lead):
     e1 = client.generate_email_1(sample_lead)
 
     assert e1.generation_mode == "BEDROCK_DEEPSEEK_API"
-    assert e1.subject == "Pre-construction document control at Kier Group plc"
+    assert e1.subject == "Pre-construction control for Kier Group"
     assert "Digital by Default" in e1.body
     assert mock_boto_client.converse.called
 
@@ -135,3 +135,81 @@ def test_production_batch_runner_uses_bedrock_by_default(tmp_path):
 
     assert os.path.exists(output_path)
     assert len(results) >= 5
+
+
+def test_bedrock_client_explicit_env_credentials(monkeypatch):
+    """Verify BedrockClient uses explicit environment credentials when provided."""
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "mock_key_id")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "mock_secret_key")
+    monkeypatch.setenv("AWS_SESSION_TOKEN", "mock_token")
+
+    mock_boto3 = MagicMock()
+    monkeypatch.setattr("boto3.client", mock_boto3)
+
+    client = BedrockClient(dry_run=False)
+    client._init_bedrock_client()
+
+    mock_boto3.assert_called_with(
+        "bedrock-runtime",
+        region_name=client.region,
+        aws_access_key_id="mock_key_id",
+        aws_secret_access_key="mock_secret_key",
+        aws_session_token="mock_token",
+    )
+
+
+def test_bedrock_client_shared_credential_chain(monkeypatch):
+    """Verify BedrockClient resolves shared credential chain via boto3.Session when env vars are absent."""
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
+
+    mock_frozen = MagicMock()
+    mock_frozen.access_key = "shared_key_id"
+    mock_frozen.secret_key = "shared_secret_key"
+    mock_frozen.token = None
+
+    mock_creds = MagicMock()
+    mock_creds.get_frozen_credentials.return_value = mock_frozen
+
+    mock_session_instance = MagicMock()
+    mock_session_instance.get_credentials.return_value = mock_creds
+
+    mock_session_cls = MagicMock(return_value=mock_session_instance)
+    mock_boto3 = MagicMock()
+
+    monkeypatch.setattr("boto3.Session", mock_session_cls)
+    monkeypatch.setattr("boto3.client", mock_boto3)
+
+    client = BedrockClient(dry_run=False)
+    client._init_bedrock_client()
+
+    mock_boto3.assert_called_with(
+        "bedrock-runtime",
+        region_name=client.region,
+        aws_access_key_id="shared_key_id",
+        aws_secret_access_key="shared_secret_key",
+    )
+
+
+def test_bedrock_client_no_credentials_safe_initialization(monkeypatch):
+    """Verify BedrockClient initializes safely without crash when no credentials are found."""
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
+
+    mock_session_instance = MagicMock()
+    mock_session_instance.get_credentials.return_value = None
+
+    mock_session_cls = MagicMock(return_value=mock_session_instance)
+    mock_boto3 = MagicMock()
+
+    monkeypatch.setattr("boto3.Session", mock_session_cls)
+    monkeypatch.setattr("boto3.client", mock_boto3)
+
+    client = BedrockClient(dry_run=False)
+    res = client._init_bedrock_client()
+
+    assert res is not None
+    mock_boto3.assert_called_with("bedrock-runtime", region_name=client.region)
+

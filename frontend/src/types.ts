@@ -31,6 +31,10 @@ export interface LeadSummaryItem {
   contact: string;
   title: string;
   email: string;
+  email_status?: string;
+  email_source?: string;
+  approval_stage?: string;
+  workflow_status?: string;
   qualification_status: string;
   opportunity_score: number;
   accessibility_score: number;
@@ -56,6 +60,13 @@ export interface LeadDetailResponse {
   contact: string;
   title: string;
   email: string;
+  email_status?: string;
+  email_source?: string;
+  email_validated?: boolean;
+  email_found_and_valid?: boolean;
+  miss_reason?: string;
+  approval_stage?: string;
+  workflow_status?: string;
   website?: string;
   linkedin_url?: string;
   qualification_status: string;
@@ -95,6 +106,13 @@ export interface ApprovalRecord {
   contact: string;
   title: string;
   email: string;
+  email_status?: string;
+  email_source?: string;
+  email_validated?: boolean;
+  email_found_and_valid?: boolean;
+  miss_reason?: string;
+  approval_stage?: string;
+  workflow_status?: string;
   qualification_status: string;
   opportunity_score: number;
   accessibility_score: number;
@@ -160,6 +178,12 @@ export interface ICPConfig {
   preferred_conditions: string[];
   reasoning?: string;
   voc_context?: string;
+  company_name?: string;
+  product_or_service?: string;
+  value_proposition?: string;
+  offer?: string;
+  cta?: string;
+  sender_name?: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -205,6 +229,12 @@ export interface ManualICPCreateRequest {
   additional_notes?: string;
   voc_context?: string;
   campaign_id?: string;
+  company_name?: string;
+  product_or_service?: string;
+  value_proposition?: string;
+  offer?: string;
+  cta?: string;
+  sender_name?: string;
 }
 
 export interface DeeplineDiscoveryPreviewResponse {

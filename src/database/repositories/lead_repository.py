@@ -165,7 +165,7 @@ class LeadRepository:
             lead.disqualification_reason = disqualification_reason
             lead.personalization_status = personalization_status
             lead.personalization_note = personalization_note
-            lead.voc_angle = voc_angle
+            lead.voc_angle = voc_angle[:255] if voc_angle else None
             lead.environment = environment
             self.session.flush()
             return lead
@@ -192,7 +192,7 @@ class LeadRepository:
             disqualification_reason=disqualification_reason,
             personalization_status=personalization_status,
             personalization_note=personalization_note,
-            voc_angle=voc_angle,
+            voc_angle=voc_angle[:255] if voc_angle else None,
             environment=environment,
         )
         self.session.add(lead)

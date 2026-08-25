@@ -167,6 +167,25 @@ def approve_lead(lead_id: str, payload: ApproveRequest) -> ApprovalActionRespons
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/{lead_id}/approve_email_status", response_model=ApprovalActionResponse)
+def approve_email_status(lead_id: str, payload: ApproveRequest) -> ApprovalActionResponse:
+    """Approves an UNVERIFIED lead's email status (stage 1) and triggers AI generation for stage 2 draft review."""
+    from src.integrations.bedrock_client import BedrockClient
+    llm_client = BedrockClient()
+    engine = ApprovalEngine()
+    try:
+        updated = engine.approve_email_status(lead_id, llm_client=llm_client, reviewer=payload.reviewer)
+        return ApprovalActionResponse(
+            ok=True,
+            message=f"Unverified lead '{lead_id}' email status APPROVED. AI email generation completed for draft review.",
+            record=updated,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=f"Email status approval failed: {str(ex)}")
+
+
 @router.post("/{lead_id}/reject", response_model=ApprovalActionResponse)
 def reject_lead(lead_id: str, payload: RejectRequest) -> ApprovalActionResponse:
     """Rejects a lead draft from outreach."""

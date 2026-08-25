@@ -73,6 +73,16 @@ export const LeadDetailPage: React.FC<LeadDetailPageProps> = ({
     }
   };
 
+  const handleApproveEmailStatus = async () => {
+    try {
+      const res = await api.approveEmailStatus(leadId, 'HUMAN_OPERATOR');
+      showToast('success', res.message);
+      fetchDetail();
+    } catch (err: any) {
+      showToast('error', `Email status approval failed: ${err.message}`);
+    }
+  };
+
   const handleReject = async () => {
     try {
       const res = await api.rejectLead(leadId, rejectReason || 'Operator rejected');
@@ -116,6 +126,10 @@ export const LeadDetailPage: React.FC<LeadDetailPageProps> = ({
   if (loading) return <div>Loading lead intelligence dossier...</div>;
   if (!lead) return <div>Lead not found.</div>;
 
+  const rawEmailStatus = (lead.email_status || lead.metadata?.email_status || (lead.email && lead.email.includes('@') ? 'VERIFIED' : 'NO_EMAIL')).toUpperCase();
+  const isNoEmail = rawEmailStatus === 'NO_EMAIL' || rawEmailStatus === 'NO_EMAIL_PERSISTED' || !lead.email;
+  const isUnverified = rawEmailStatus === 'UNVERIFIED' || rawEmailStatus === 'PATTERN_CONFIRMED' || rawEmailStatus === 'CATCHALL_UNVERIFIED';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Top Action Nav */}
@@ -126,7 +140,14 @@ export const LeadDetailPage: React.FC<LeadDetailPageProps> = ({
         </button>
 
         <div style={{ display: 'flex', gap: '10px' }}>
-          {lead.approval_status !== 'APPROVED' && (
+          {(lead.approval_stage === 'EMAIL_STATUS_APPROVAL' || isUnverified) && lead.approval_status !== 'APPROVED' && lead.approval_status !== 'REJECTED' && (
+            <button className="btn btn-warning" style={{ background: '#f59e0b', borderColor: '#d97706', color: '#fff' }} onClick={handleApproveEmailStatus}>
+              <CheckCircle size={14} />
+              <span>Approve Email & Generate Copy</span>
+            </button>
+          )}
+
+          {lead.approval_stage !== 'EMAIL_STATUS_APPROVAL' && !isNoEmail && lead.approval_status !== 'APPROVED' && (
             <button className="btn btn-success" onClick={handleApprove}>
               <CheckCircle size={14} />
               <span>Approve Draft</span>
@@ -161,6 +182,7 @@ export const LeadDetailPage: React.FC<LeadDetailPageProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{lead.company}</h2>
               <Badge type="icp" value={lead.qualification_status} />
+              <Badge type="email_status" value={rawEmailStatus} />
               <Badge type="priority" value={lead.priority} />
               <Badge type="approval" value={lead.approval_status} />
               {lead.metadata?.role_track && (
@@ -180,6 +202,30 @@ export const LeadDetailPage: React.FC<LeadDetailPageProps> = ({
               )}
             </div>
 
+            {isNoEmail && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', color: '#9ca3af', margin: '6px 0 8px 0', fontWeight: 600 }}>
+                <span>Delivery Safety Block: <strong>{lead.blocked_reason || 'No usable work email discovered'}</strong></span>
+              </div>
+            )}
+
+            {!isNoEmail && lead.approval_status === 'BLOCKED' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', color: '#ef4444', margin: '6px 0 8px 0', fontWeight: 600 }}>
+                <span>Delivery Safety Block: <strong>{lead.blocked_reason || 'Email address invalid/bounced or compliance blocked'}</strong></span>
+              </div>
+            )}
+
+            {isUnverified && lead.approval_status !== 'APPROVED' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', color: '#f59e0b', margin: '6px 0 8px 0', fontWeight: 600 }}>
+                <span>Approval required before AI email generation</span>
+              </div>
+            )}
+
+            {lead.approval_status !== 'BLOCKED' && lead.qualification_status !== 'QUALIFIED' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', color: '#f59e0b', margin: '6px 0 8px 0', fontWeight: 600 }}>
+                <span>ICP Qualification Status: <strong>{lead.qualification_status}</strong> {lead.disqualification_reason ? `— ${lead.disqualification_reason}` : ''}</span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '18px', color: 'var(--text-muted)', fontSize: '0.86rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <User size={15} color="var(--primary)" />
@@ -188,7 +234,11 @@ export const LeadDetailPage: React.FC<LeadDetailPageProps> = ({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Mail size={15} color="var(--primary)" />
-                <span style={{ fontFamily: 'var(--font-mono)' }}>{lead.email}</span>
+                {isNoEmail ? (
+                  <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>No usable work email discovered</span>
+                ) : (
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{lead.email}</span>
+                )}
               </div>
               {lead.website && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

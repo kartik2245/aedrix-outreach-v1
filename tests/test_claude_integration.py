@@ -116,7 +116,7 @@ def test_h_mocked_claude_api_call(sample_lead):
     mock_response = MagicMock()
     mock_content = MagicMock()
     mock_content.text = json.dumps({
-        "subject": "Pre-construction document control at Kier Group plc",
+        "subject": "Pre-construction control for Kier Group",
         "body": "Hi Colin,\n\nSaw Kier's official Digital by Default strategy. Aedrix unifies document control directly with real-time site manpower tracking.\n\nOpen to a brief 2-minute overview?\n\nBest,\nAedrix Team"
     })
     mock_response.content = [mock_content]
@@ -126,7 +126,7 @@ def test_h_mocked_claude_api_call(sample_lead):
     e1 = client.generate_email_1(sample_lead)
 
     assert e1.generation_mode == "CLAUDE_API"
-    assert e1.subject == "Pre-construction document control at Kier Group plc"
+    assert e1.subject == "Pre-construction control for Kier Group"
     assert "Digital by Default" in e1.body
     assert e1.word_count <= 120
     assert mock_anthropic.messages.create.called

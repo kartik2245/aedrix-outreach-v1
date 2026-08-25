@@ -16,6 +16,7 @@ import { DashboardStats, ApprovalRecord } from './types';
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -74,6 +75,9 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         onSelectTab={(tab) => {
           setSelectedLeadId(null);
+          if (tab !== 'leads') {
+            setSelectedCampaignId(null);
+          }
           setActiveTab(tab);
           refreshAllData();
         }}
@@ -99,16 +103,24 @@ export const App: React.FC = () => {
             <DashboardPage
               stats={stats}
               approvals={approvals}
-              onNavigateToLeads={() => setActiveTab('leads')}
+              onNavigateToLeads={() => {
+                setSelectedCampaignId(null);
+                setActiveTab('leads');
+              }}
               onNavigateToApprovals={() => setActiveTab('approvals')}
               onNavigateToStaging={() => setActiveTab('staging')}
               onSelectLead={(id) => setSelectedLeadId(id)}
             />
           ) : activeTab === 'leads' ? (
-            <LeadsPage onSelectLead={(id) => setSelectedLeadId(id)} />
+            <LeadsPage
+              initialCampaignId={selectedCampaignId}
+              onSelectLead={(id) => setSelectedLeadId(id)}
+              onClearCampaignFilter={() => setSelectedCampaignId(null)}
+            />
           ) : activeTab === 'icp-builder' ? (
             <ICPBuilderPage
-              onNavigateToLeads={() => {
+              onNavigateToLeads={(campaignId) => {
+                setSelectedCampaignId(campaignId || null);
                 setActiveTab('leads');
                 refreshAllData();
               }}

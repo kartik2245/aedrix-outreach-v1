@@ -83,7 +83,7 @@ def test_b_hard_disqualification_non_uk(icp_engine):
 
 
 def test_b_hard_disqualification_non_construction(icp_engine):
-    """Test B: Non-construction sector is hard disqualified."""
+    """Test B: Non-target sector is hard disqualified."""
     lead = {
         "company_name": "Fintech Global Payments Ltd",
         "company_domain": "fintechglobal.co.uk",
@@ -98,8 +98,39 @@ def test_b_hard_disqualification_non_construction(icp_engine):
     }
     result = icp_engine.evaluate_lead(lead)
     assert result.status == DisqualificationStatus.HARD_DISQUALIFIED
-    assert "Non-construction sector" in (result.disqualification_reason or "")
+    assert "Non-target sector" in (result.disqualification_reason or "")
+    assert "Non-construction sector" not in (result.disqualification_reason or "")
     assert result.rule_code == "NON_CONSTRUCTION"
+
+
+def test_b_hard_disqualification_generic_industry_message():
+    """Test B: Industry mismatch outputs generic dynamic message without legacy construction prefix."""
+    from src.icp.icp_models import ICPConfig, ICPStatus, GeographyConfig
+    icp = ICPConfig(
+        id="icp_tech_test",
+        campaign_id="camp_tech",
+        name="SaaS & Tech ICP",
+        campaign_description="Target SaaS and technology decision makers",
+        status=ICPStatus.APPROVED,
+        geography=GeographyConfig(primary_country="India", allowed_country_keywords=["INDIA"]),
+        allowed_industry_keywords=["SaaS", "Software Development"],
+    )
+    engine = ICPEngine(icp)
+    lead = {
+        "company_name": "Complere Infosystem",
+        "company_domain": "complereinfosystem.com",
+        "country": "India",
+        "industry": "computer software",
+        "employee_count": 50,
+        "contact_name": "Isha Taneja",
+        "job_title": "Co-Founder & CEO",
+        "email": "isha.taneja@complereinfosystem.com",
+    }
+    result = engine.evaluate_lead(lead)
+    assert result.status == DisqualificationStatus.HARD_DISQUALIFIED
+    assert "Industry 'computer software' does not match target ICP criteria" in (result.disqualification_reason or "")
+    assert "Non-construction sector" not in (result.disqualification_reason or "")
+    assert result.rule_code == "NON_TARGET_INDUSTRY"
 
 
 def test_b_hard_disqualification_under_size_threshold(icp_engine):

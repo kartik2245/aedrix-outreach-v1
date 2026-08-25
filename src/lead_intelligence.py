@@ -90,16 +90,21 @@ class LeadIntelligenceEngine:
             persona_rationale=persona_rationale
         )
 
-    def evaluate_qualification(self, lead: Dict[str, Any]) -> Tuple[DisqualificationStatus, Optional[str]]:
-        """Evaluates Hard Disqualifiers and Campaign Exclusions."""
+    def evaluate_qualification(self, lead: Dict[str, Any], icp_config: Optional[Any] = None) -> Tuple[DisqualificationStatus, Optional[str]]:
+        """Evaluates Hard Disqualifiers and Campaign Exclusions dynamically based on active ICP if provided."""
+        if icp_config:
+            from src.icp.icp_engine import ICPEngine
+            eval_res = ICPEngine(icp_config).evaluate_lead(lead)
+            return eval_res.status, eval_res.disqualification_reason
+
         is_uk = lead.get("is_uk_operating")
         country = str(lead.get("country", "")).upper()
 
-        if is_uk is False or (country and "UK" not in country and "UNITED KINGDOM" not in country):
+        if is_uk is False or (country and not any(k in country for k in ("UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB", "GBR"))):
             return DisqualificationStatus.HARD_DISQUALIFIED, "Non-UK geography (Headquarters or primary operations outside UK)"
 
-        if lead.get("is_construction_sector") is False:
-            return DisqualificationStatus.HARD_DISQUALIFIED, "Non-construction sector (Out of scope business model)"
+        if lead.get("is_construction_sector") is False and lead.get("is_construction_sector") is not None:
+            return DisqualificationStatus.HARD_DISQUALIFIED, "Non-target sector (Out of scope business model)"
 
         emp_count = lead.get("employee_count")
         if emp_count is not None and emp_count > 0 and emp_count < 50:
@@ -284,19 +289,19 @@ class LeadIntelligenceEngine:
         if not has_signal or is_no_signal_flag:
             return (
                 PersonalizationNoteStatus.NO_STRONG_SIGNAL,
-                "Given your role leading operations across UK building projects, I thought you'd be interested in how Aedrix unifies pre-construction document control directly with real-time site manpower tracking."
+                f"Given your role as {lead.get('job_title', 'a decision maker')} at {lead.get('company_name', 'your organization')}, I thought you'd be interested in exploring ways to enhance operational efficiency."
             )
 
         note_str = lead.get("personalization_note")
         if note_str:
             parts = note_str.split('.')
             s1 = parts[0] + '.'
-            s2 = parts[1].strip() + '.' if len(parts) > 1 and parts[1].strip() else "Aedrix provides a ready-to-deploy cloud layer for unifying pre-construction document control and regional manpower tracking."
+            s2 = parts[1].strip() + '.' if len(parts) > 1 and parts[1].strip() else "Our platform provides a ready-to-deploy cloud layer for operational workflow automation."
         else:
             company = lead.get("company_name", "your company")
             clean_signal = str(signal).rstrip(".")
             s1 = f"Saw {company}'s recent initiative regarding {clean_signal}."
-            s2 = "Aedrix provides a ready-to-deploy cloud layer for unifying pre-construction document control and regional manpower tracking."
+            s2 = "Our platform provides a ready-to-deploy cloud layer for operational workflow automation."
 
         return PersonalizationNoteStatus.SIGNAL_VERIFIED, f"{s1} {s2}"
 
@@ -332,7 +337,7 @@ class LeadIntelligenceEngine:
             linkedin_url=raw_lead.get("linkedin_url"),
             company_size=raw_lead.get("company_size", "UNKNOWN"),
             company_size_evidence=raw_lead.get("company_size_evidence", EvidenceLevel.ESTIMATED),
-            industry=raw_lead.get("industry", "Construction"),
+            industry=raw_lead.get("industry", "Technology"),
             opportunity_score=opportunity_score,
             accessibility_score=accessibility_score,
             outreach_priority_index=outreach_priority_index,
@@ -345,7 +350,7 @@ class LeadIntelligenceEngine:
             personalization_note=personalization_note,
             research_sources=raw_lead.get("research_sources", []),
             ICP_score=opportunity_score,
-            pain_point=raw_lead.get("pain_point", "Managing pre-construction document control across multi-site teams."),
+            pain_point=raw_lead.get("pain_point", "Operational efficiency and digital transformation challenges."),
             pain_point_evidence=raw_lead.get("pain_point_evidence", EvidenceLevel.INFERRED),
             relevant_signal=raw_lead.get("relevant_signal", "NO_STRONG_SIGNAL"),
             relevant_signal_evidence=raw_lead.get("relevant_signal_evidence", EvidenceLevel.UNKNOWN),

@@ -20,64 +20,49 @@ from src.models import (
 
 
 class VoCEngine:
-    BASELINE_PERSONALIZATION = (
-        "Given your role leading operations across UK building projects, I thought you'd be "
-        "interested in how Aedrix unifies pre-construction document control directly with "
-        "real-time site manpower tracking."
-    )
-    BASELINE_VALUE_PROP = (
-        "Aedrix unifies pre-construction document control directly with real-time site manpower "
-        "tracking so operational teams operate from a single source of truth."
-    )
-    BASELINE_VOC_ANGLE = "Pre-Construction Document Control & Real-Time Manpower Tracking"
-
-    # Approved Voice-of-Customer pain domains and industry terminology
-    VOC_TAXONOMY = {
-        "digital_transformation": {
-            "keywords": ["digital by default", "digital transformation", "digital construction", "bim", "dfma", "cio", "digitall", "expanded digital"],
-            "angle": "Digital Transformation & Systems Modernization",
-            "value_prop": "Aedrix delivers a fast-to-deploy cloud platform that bridges legacy systems with modern site data.",
-            "pain_summary": "Navigating digital maturity roadmaps without adding administrative friction across regional project delivery teams."
-        },
-        "document_drawing_control": {
-            "keywords": ["document control", "drawing control", "versioning", "drawings", "rfi", "submittals", "cde", "specifications"],
-            "angle": "Pre-Construction Document & Drawing Control",
-            "value_prop": "Aedrix eliminates document version latency between pre-construction teams and site subcontractors.",
-            "pain_summary": "Managing fast-moving drawing revisions and subcontractor document versions across regional sites."
-        },
-        "manpower_workforce_tracking": {
-            "keywords": ["manpower", "workforce", "labor tracking", "site attendance", "trades", "subcontractor hours", "labor productivity"],
-            "angle": "Real-Time Jobsite Manpower & Workforce Visibility",
-            "value_prop": "Aedrix gives operations leaders live site headcount and productivity tracking across all active projects.",
-            "pain_summary": "Reconciling planned subcontractor allocations against live jobsite attendance without manual paperwork."
-        },
-        "commercial_financial_management": {
-            "keywords": ["commercial management", "financial", "budget", "cost control", "tendering", "procurement", "margins", "variations"],
-            "angle": "Commercial & Financial Cost Control",
-            "value_prop": "Aedrix connects pre-construction tender estimates directly with live site expenditure and variations.",
-            "pain_summary": "Protecting commercial project margins from delayed variation logging and untracked labor overruns."
-        },
-        "operational_coordination": {
-            "keywords": ["fragmented systems", "operational visibility", "manual processes", "silos", "project coordination", "multi-site"],
-            "angle": "Operational Coordination & Multi-Site Visibility",
-            "value_prop": "Aedrix unifies fragmented spreadsheets and legacy tools into a central operational dashboard.",
-            "pain_summary": "Eliminating operational silos and administrative delay between regional site managers and head office."
-        }
-    }
-
-    def map_lead_voc(self, lead_data: Union[Dict[str, Any], LeadIntelligenceOutput]) -> VoCContext:
+    def map_lead_voc(
+        self,
+        lead_data: Union[Dict[str, Any], LeadIntelligenceOutput],
+        icp_config: Optional[Any] = None,
+    ) -> VoCContext:
         """
         Maps a LeadIntelligenceOutput or raw lead dictionary to structured VoCContext.
-        Enforces zero hallucination and evidence-level compliance.
+        Dynamically adapts to the active ICP config and lead evidence without hardcoded industry templates.
         """
         if isinstance(lead_data, LeadIntelligenceOutput):
             lead = lead_data.model_dump()
         else:
             lead = dict(lead_data)
 
+        # Extract brand, campaign, and value prop details from icp_config if available
+        brand_name = getattr(icp_config, "company_name", None) or "Aedrix"
+        sender_name = getattr(icp_config, "sender_name", None) or f"{brand_name} Team"
+        camp_name = getattr(icp_config, "name", None) or getattr(icp_config, "campaign_id", None)
+        camp_obj = getattr(icp_config, "campaign_description", None) or getattr(icp_config, "source_context", None)
+        prod_desc = getattr(icp_config, "product_or_service", None) or getattr(icp_config, "product_context", None)
+        val_prop = (
+            getattr(icp_config, "value_proposition", None)
+            or getattr(icp_config, "voc_context", None)
+            or camp_obj
+            or prod_desc
+        )
+        offer = getattr(icp_config, "offer", None)
+        cta = getattr(icp_config, "cta", None) or "Are you open to a brief 2-minute overview this week?"
+
+        lead_ind = lead.get("industry") or (
+            ", ".join(getattr(icp_config, "industries", []))
+            if getattr(icp_config, "industries", None)
+            else "Business"
+        )
+
+        if not val_prop:
+            val_prop = f"{brand_name} provides solutions to optimize operational workflows for {lead_ind} organizations."
+
+        default_voc_angle = getattr(icp_config, "voc_context", None) or f"{lead_ind} Operations Optimization"
+
         signal = lead.get("relevant_signal") or ""
         signal_ev_raw = lead.get("relevant_signal_evidence")
-        
+
         if isinstance(signal_ev_raw, EvidenceLevel):
             signal_ev = signal_ev_raw
         elif signal_ev_raw:
@@ -97,44 +82,53 @@ class VoCEngine:
             or signal_ev == EvidenceLevel.UNKNOWN
         )
 
+        company = lead.get("company_name", "your company")
+        job_title = lead.get("job_title", "operations")
+
         if is_explicit_no_signal:
+            hook = f"Given your role leading {job_title} at {company}, I thought you'd be interested in how {brand_name} supports {lead_ind} teams."
             return VoCContext(
-                pain_category="pre_construction_document_control",
-                voc_angle=self.BASELINE_VOC_ANGLE,
-                customer_language_hook=self.BASELINE_PERSONALIZATION,
-                personalization_note=self.BASELINE_PERSONALIZATION,
+                pain_category=f"{lead_ind.lower().replace(' ', '_')}_operations",
+                voc_angle=default_voc_angle,
+                customer_language_hook=hook,
+                personalization_note=hook,
                 personalization_note_status=PersonalizationNoteStatus.NO_STRONG_SIGNAL,
-                aedrix_value_prop=self.BASELINE_VALUE_PROP,
-                evidence_level=EvidenceLevel.UNKNOWN
+                aedrix_value_prop=val_prop,
+                evidence_level=EvidenceLevel.UNKNOWN,
+                campaign_name=camp_name,
+                campaign_objective=camp_obj,
+                product_or_service=prod_desc,
+                value_proposition=val_prop,
+                offer=offer,
+                cta=cta,
+                company_name=brand_name,
+                sender_name=sender_name,
+                geography=str(getattr(icp_config, "geography", "")),
+                industry=lead_ind,
             )
 
         # Matched signal exists
-        category, taxonomy_match = self._classify_signal_to_voc(signal, lead)
-        
+        clean_signal = str(signal).rstrip(".")
         pers_note = lead.get("personalization_note")
-        if not pers_note or pers_note == self.BASELINE_PERSONALIZATION:
-            company = lead.get("company_name", "your organization")
-            clean_signal = signal.rstrip(".")
-            pers_note = f"Saw {company}'s recent initiative regarding {clean_signal}. {taxonomy_match['value_prop']}"
+        if not pers_note:
+            pers_note = f"Saw {company}'s recent initiative regarding {clean_signal}. {val_prop}"
 
         return VoCContext(
-            pain_category=category,
-            voc_angle=taxonomy_match["angle"],
+            pain_category=f"{lead_ind.lower().replace(' ', '_')}_verified_signal",
+            voc_angle=default_voc_angle,
             customer_language_hook=pers_note,
             personalization_note=pers_note,
             personalization_note_status=PersonalizationNoteStatus.SIGNAL_VERIFIED,
-            aedrix_value_prop=taxonomy_match["value_prop"],
-            evidence_level=signal_ev
+            aedrix_value_prop=val_prop,
+            evidence_level=signal_ev,
+            campaign_name=camp_name,
+            campaign_objective=camp_obj,
+            product_or_service=prod_desc,
+            value_proposition=val_prop,
+            offer=offer,
+            cta=cta,
+            company_name=brand_name,
+            sender_name=sender_name,
+            geography=str(getattr(icp_config, "geography", "")),
+            industry=lead_ind,
         )
-
-    def _classify_signal_to_voc(self, signal: str, lead: Dict[str, Any]) -> Tuple[str, Dict[str, str]]:
-        """Classifies signal or lead fields into the closest approved VoC domain."""
-        combined_text = f"{signal} {lead.get('job_title', '')} {lead.get('pain_point', '')}".lower()
-
-        for category, data in self.VOC_TAXONOMY.items():
-            for kw in data["keywords"]:
-                if kw in combined_text:
-                    return category, data
-
-        # Default to operational coordination if specific keywords not hit
-        return "operational_coordination", self.VOC_TAXONOMY["operational_coordination"]

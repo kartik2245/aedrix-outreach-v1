@@ -49,4 +49,7 @@ class ApprovalRecord(BaseModel):
     campaign_id: str = "default_campaign"
     icp_id: Optional[str] = None
     icp_version: str = "1.0.0"
+    email_status: str = "VERIFIED"
+    approval_stage: str = "AI_EMAIL_APPROVAL"
+    workflow_status: str = "AWAITING_EMAIL_APPROVAL"
     metadata: Dict[str, Any] = Field(default_factory=dict)

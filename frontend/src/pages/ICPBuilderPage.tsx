@@ -112,6 +112,20 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
     'Manually authored ICP for direct commercial outreach pilot.'
   );
 
+  // --- Outreach / Campaign Context State ---
+  const [outreachCompanyName, setOutreachCompanyName] = useState('AEDRIX');
+  const [outreachProductOrService, setOutreachProductOrService] = useState(
+    'AI-powered business automation and software solutions'
+  );
+  const [outreachValueProposition, setOutreachValueProposition] = useState(
+    'Help businesses automate workflows, improve operational efficiency, and implement AI-powered solutions without requiring a large internal engineering team.'
+  );
+  const [outreachOffer, setOutreachOffer] = useState(
+    'A brief discussion to identify potential AI and automation opportunities'
+  );
+  const [outreachCta, setOutreachCta] = useState('Would you be open to a brief conversation?');
+  const [outreachSenderName, setOutreachSenderName] = useState('Alex Mitchell');
+
   // Flow State
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
@@ -130,13 +144,29 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
+  const [icpRecords, setIcpRecords] = useState<ICPApprovalRecord[]>([]);
+
   // Load existing active ICP if present
   useEffect(() => {
     const loadLatest = async () => {
       try {
         const list = await api.getICPs();
+        setIcpRecords(list || []);
+
         if (list && list.length > 0) {
-          setActiveRecord(list[list.length - 1]);
+          const getTime = (r: ICPApprovalRecord) => {
+            const dt = r.reviewed_at || r.effective_icp?.updated_at || r.effective_icp?.created_at || '';
+            return dt ? new Date(dt).getTime() : 0;
+          };
+          const sorted = [...list].sort((a, b) => getTime(b) - getTime(a));
+          const approved = sorted.filter((r) => String(r.status).toUpperCase() === 'APPROVED');
+          const target = approved[0] || sorted[0] || null;
+
+          console.log('ICP RECORDS LOADED:', list.length);
+          console.log('APPROVED ICP COUNT:', approved.length);
+          console.log('INITIAL ACTIVE ICP:', target?.icp_id, target?.name);
+
+          setActiveRecord(target);
         }
       } catch (err) {
         console.error('Failed to load ICPs:', err);
@@ -144,6 +174,70 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
     };
     loadLatest();
   }, []);
+
+  // Synchronize visible form inputs whenever activeRecord changes
+  useEffect(() => {
+    if (!activeRecord || !activeRecord.effective_icp) return;
+    const icp = activeRecord.effective_icp;
+
+    // Sync Claude Form State
+    if (icp.name) setCampaignName(icp.name);
+    if (icp.campaign_description) setCampaignObjective(icp.campaign_description);
+    if (icp.geography?.primary_country) setGeography(icp.geography.primary_country);
+    if (icp.industries && icp.industries.length > 0) setIndustry(icp.industries.join(', '));
+    if (icp.company_size) setCompanySize(icp.company_size);
+    if (icp.minimum_employees !== undefined && icp.minimum_employees !== null) setMinEmployees(icp.minimum_employees);
+    if (icp.minimum_revenue !== undefined && icp.minimum_revenue !== null) setMinRevenue(icp.minimum_revenue);
+    if (icp.target_personas && icp.target_personas.length > 0) setPersonas(icp.target_personas.join(', '));
+    if (icp.positive_signals && icp.positive_signals.length > 0) setPositiveSignals(icp.positive_signals.join(', '));
+    if (icp.negative_signals && icp.negative_signals.length > 0) setNegativeSignals(icp.negative_signals.join(', '));
+    if (icp.hard_disqualifiers && icp.hard_disqualifiers.length > 0) {
+      setHardDisqualifiers(icp.hard_disqualifiers.map((d: any) => d.description || d).join(', '));
+    }
+    if (icp.campaign_exclusions && icp.campaign_exclusions.length > 0) {
+      setCampaignExclusions(icp.campaign_exclusions.map((e: any) => e.description || e).join(', '));
+    }
+    if (icp.voc_context) setVocContext(icp.voc_context);
+
+    // Sync Manual Form State
+    if (icp.name) setManualCampaignName(icp.name);
+    if (icp.campaign_description) setManualObjective(icp.campaign_description);
+    if (icp.industries && icp.industries.length > 0) setManualIndustry(icp.industries.join(', '));
+    if (icp.geography?.primary_country) setManualGeography(icp.geography.primary_country);
+    if (icp.minimum_employees !== undefined && icp.minimum_employees !== null) setManualMinEmployees(icp.minimum_employees);
+    if (icp.maximum_employees !== undefined && icp.maximum_employees !== null) setManualMaxEmployees(icp.maximum_employees);
+    if (icp.minimum_revenue !== undefined && icp.minimum_revenue !== null) setManualMinRevenue(icp.minimum_revenue);
+    if (icp.maximum_revenue !== undefined && icp.maximum_revenue !== null) setManualMaxRevenue(icp.maximum_revenue);
+
+    if (icp.target_personas && icp.target_personas.length > 0) {
+      setManualPersonas(
+        icp.target_personas.map((p) => {
+          if (p.includes('(') && p.endsWith(')')) {
+            const match = p.match(/^(.*?)\s*\((.*?)\)$/);
+            if (match) return { title: match[1].trim(), seniority: match[2].trim() };
+          }
+          return { title: p, seniority: '' };
+        })
+      );
+    }
+    if (icp.positive_signals && icp.positive_signals.length > 0) setManualQualRules(icp.positive_signals);
+    if (icp.hard_disqualifiers && icp.hard_disqualifiers.length > 0) {
+      setManualHardDisqualifiers(icp.hard_disqualifiers.map((d: any) => d.description || String(d)));
+    }
+    if (icp.campaign_exclusions && icp.campaign_exclusions.length > 0) {
+      setManualExclusions(icp.campaign_exclusions.map((e: any) => e.description || String(e)));
+    }
+    if (icp.voc_context) setManualVocAngle(icp.voc_context);
+    if (icp.reasoning) setManualAdditionalNotes(icp.reasoning);
+
+    // Sync Outreach Context State
+    if (icp.company_name) setOutreachCompanyName(icp.company_name);
+    if (icp.product_or_service) setOutreachProductOrService(icp.product_or_service);
+    if (icp.value_proposition) setOutreachValueProposition(icp.value_proposition);
+    if (icp.offer) setOutreachOffer(icp.offer);
+    if (icp.cta) setOutreachCta(icp.cta);
+    if (icp.sender_name) setOutreachSenderName(icp.sender_name);
+  }, [activeRecord]);
 
   const handleGenerateClaudeICP = async () => {
     try {
@@ -170,8 +264,15 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
         hard_disqualifiers: hardList,
         campaign_exclusions: exclList,
         voc_context: vocContext,
+        company_name: outreachCompanyName,
+        product_or_service: outreachProductOrService,
+        value_proposition: outreachValueProposition,
+        offer: outreachOffer,
+        cta: outreachCta,
+        sender_name: outreachSenderName,
       });
 
+      setIcpRecords((prev) => [res.record, ...prev.filter((r) => r.icp_id !== res.record.icp_id)]);
       setActiveRecord(res.record);
       showToast('success', res.message);
     } catch (err: any) {
@@ -231,8 +332,15 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
         campaign_exclusion_rules: manualExclusions.filter((r) => r.trim().length > 0),
         additional_notes: manualAdditionalNotes,
         voc_context: manualVocAngle,
+        company_name: outreachCompanyName,
+        product_or_service: outreachProductOrService,
+        value_proposition: outreachValueProposition,
+        offer: outreachOffer,
+        cta: outreachCta,
+        sender_name: outreachSenderName,
       });
 
+      setIcpRecords((prev) => [res.record, ...prev.filter((r) => r.icp_id !== res.record.icp_id)]);
       setActiveRecord(res.record);
       showToast('success', res.message);
     } catch (err: any) {
@@ -341,6 +449,63 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
           Both converge into the same structured profile, human review gate, and automated Deepline discovery pipeline.
         </p>
       </div>
+
+      {/* Active ICP Profile Selector Bar */}
+      {icpRecords.length > 0 && (
+        <div
+          className="card"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            padding: '12px 18px',
+            background: 'rgba(30, 41, 59, 0.7)',
+            borderColor: 'rgba(99, 102, 241, 0.3)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Layers size={18} color="var(--primary)" />
+            <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
+              Active ICP Profile:
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, maxWidth: '650px' }}>
+            <select
+              className="form-input"
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                background: 'var(--bg-input)',
+                borderColor: 'rgba(99, 102, 241, 0.4)',
+                color: 'var(--text-main)',
+                cursor: 'pointer',
+              }}
+              value={activeRecord?.icp_id || ''}
+              onChange={(e) => {
+                const selected = icpRecords.find((r) => r.icp_id === e.target.value);
+                if (selected) {
+                  console.log('ACTIVE ICP CHANGED:', selected.icp_id, selected.name);
+                  setActiveRecord(selected);
+                }
+              }}
+            >
+              {icpRecords
+                .slice()
+                .sort((a, _b) => (a.status === 'APPROVED' ? -1 : 1))
+                .map((rec) => (
+                  <option key={rec.icp_id} value={rec.icp_id}>
+                    [{rec.status}] {rec.effective_icp?.name || rec.name} (v{rec.version})
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Creation Mode Switcher */}
       <div
@@ -574,6 +739,73 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
                   value={vocContext}
                   onChange={(e) => setVocContext(e.target.value)}
                 />
+              </div>
+            </div>
+
+            {/* Section E — Campaign / Outreach Context */}
+            <div>
+              <span style={{ fontSize: '0.74rem', color: '#ec4899', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                SECTION E — CAMPAIGN / OUTREACH CONTEXT
+              </span>
+              <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label className="form-label">Company Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={outreachCompanyName}
+                      onChange={(e) => setOutreachCompanyName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Sender Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={outreachSenderName}
+                      onChange={(e) => setOutreachSenderName(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label">Product / Service</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={outreachProductOrService}
+                    onChange={(e) => setOutreachProductOrService(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Value Proposition</label>
+                  <textarea
+                    className="form-textarea"
+                    rows={2}
+                    value={outreachValueProposition}
+                    onChange={(e) => setOutreachValueProposition(e.target.value)}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label className="form-label">Offer</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={outreachOffer}
+                      onChange={(e) => setOutreachOffer(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">CTA</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={outreachCta}
+                      onChange={(e) => setOutreachCta(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -927,6 +1159,73 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
               </div>
             </div>
 
+            {/* Section E — Campaign / Outreach Context */}
+            <div>
+              <span style={{ fontSize: '0.74rem', color: '#ec4899', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                SECTION E — CAMPAIGN / OUTREACH CONTEXT
+              </span>
+              <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label className="form-label">Company Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={outreachCompanyName}
+                      onChange={(e) => setOutreachCompanyName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Sender Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={outreachSenderName}
+                      onChange={(e) => setOutreachSenderName(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label">Product / Service</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={outreachProductOrService}
+                    onChange={(e) => setOutreachProductOrService(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Value Proposition</label>
+                  <textarea
+                    className="form-textarea"
+                    rows={2}
+                    value={outreachValueProposition}
+                    onChange={(e) => setOutreachValueProposition(e.target.value)}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label className="form-label">Offer</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={outreachOffer}
+                      onChange={(e) => setOutreachOffer(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">CTA</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={outreachCta}
+                      onChange={(e) => setOutreachCta(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <button
               className="btn btn-primary"
               style={{
@@ -1107,6 +1406,20 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
                 )}
               </div>
 
+              {/* SECTION E — CAMPAIGN / OUTREACH CONTEXT Review Details */}
+              {(activeRecord.effective_icp.company_name || activeRecord.effective_icp.product_or_service) && (
+                <div style={{ background: 'rgba(236, 72, 153, 0.08)', border: '1px solid rgba(236, 72, 153, 0.25)', padding: '12px', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#f472b6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    SECTION E — CAMPAIGN / OUTREACH CONTEXT
+                  </span>
+                  <div><strong>Company Name:</strong> {activeRecord.effective_icp.company_name || 'N/A'} {activeRecord.effective_icp.sender_name ? `(Sender: ${activeRecord.effective_icp.sender_name})` : ''}</div>
+                  <div><strong>Product / Service:</strong> {activeRecord.effective_icp.product_or_service || 'N/A'}</div>
+                  {activeRecord.effective_icp.value_proposition && <div><strong>Value Proposition:</strong> {activeRecord.effective_icp.value_proposition}</div>}
+                  {activeRecord.effective_icp.offer && <div><strong>Offer:</strong> {activeRecord.effective_icp.offer}</div>}
+                  {activeRecord.effective_icp.cta && <div><strong>CTA:</strong> {activeRecord.effective_icp.cta}</div>}
+                </div>
+              )}
+
               {/* Post-Approval Deepline Discovery Launch Panel */}
               {activeRecord.status === 'APPROVED' && (
                 <div
@@ -1127,7 +1440,7 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Target Volume:</span>
-                    {[10, 50, 100, 250, 500, 1000].map((cnt) => (
+                    {[1, 2, 10, 50, 100, 250, 500, 1000].map((cnt) => (
                       <button
                         key={cnt}
                         className={`btn ${requestedCount === cnt ? 'btn-primary' : 'btn-outline'}`}
@@ -1189,7 +1502,7 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
                 </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', textAlign: 'center' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px', textAlign: 'center' }}>
                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Discovered</div>
                   <div style={{ fontSize: '1.4rem', fontWeight: 800 }}>{runResult.result.summary.discovered}</div>
@@ -1197,6 +1510,12 @@ export const ICPBuilderPage: React.FC<ICPBuilderPageProps> = ({
                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>ICP Qualified</div>
                   <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--success)' }}>{runResult.result.summary.qualified}</div>
+                </div>
+                <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Disqualified</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-muted)' }}>
+                    {(runResult.result.summary.hard_disqualified || 0) + (runResult.result.summary.campaign_excluded || 0)}
+                  </div>
                 </div>
                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>P1 Priority</div>

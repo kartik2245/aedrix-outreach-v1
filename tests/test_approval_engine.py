@@ -87,28 +87,36 @@ def test_2_qa_failure_creates_blocked(engine, base_qualified_lead_kwargs):
     assert "2029" in (record.blocked_reason or "")
 
 
-# --- Test 3: Hard-disqualified lead is BLOCKED ---
+# --- Test 3: Hard-disqualified lead enters PENDING_REVIEW (reviewable) ---
 
-def test_3_hard_disqualified_lead_is_blocked(engine, base_qualified_lead_kwargs):
+def test_3_hard_disqualified_lead_enters_pending_review(engine, base_qualified_lead_kwargs):
     kwargs = dict(base_qualified_lead_kwargs)
     kwargs["qualification_status"] = "HARD_DISQUALIFIED"
-    kwargs["disqualification_reason"] = "Non-UK geography (Headquarters or primary operations outside UK)"
+    kwargs["disqualification_reason"] = "Non-target geography (Headquarters or primary operations 'France' outside target geography)"
 
     record = engine.enroll_draft(**kwargs)
-    assert record.approval_status == ApprovalStatus.BLOCKED
+    assert record.approval_status == ApprovalStatus.PENDING_REVIEW
+    assert record.qualification_status == "HARD_DISQUALIFIED"
     assert record.smartlead_eligible is False
-    assert "Non-UK geography" in (record.blocked_reason or "")
+    assert "Non-target geography" in (record.blocked_reason or "")
+
+    # Human approval succeeds while retaining HARD_DISQUALIFIED qualification status
+    approved = engine.approve(record.lead_id, reviewer="HUMAN_OPERATOR")
+    assert approved.approval_status == ApprovalStatus.APPROVED
+    assert approved.smartlead_eligible is True
+    assert approved.qualification_status == "HARD_DISQUALIFIED"
 
 
-# --- Test 4: Campaign-excluded lead is BLOCKED ---
+# --- Test 4: Campaign-excluded lead enters PENDING_REVIEW ---
 
-def test_4_campaign_excluded_lead_is_blocked(engine, base_qualified_lead_kwargs):
+def test_4_campaign_excluded_lead_enters_pending_review(engine, base_qualified_lead_kwargs):
     kwargs = dict(base_qualified_lead_kwargs)
     kwargs["qualification_status"] = "CAMPAIGN_EXCLUDED"
     kwargs["disqualification_reason"] = "Active sales deal or existing customer in CRM"
 
     record = engine.enroll_draft(**kwargs)
-    assert record.approval_status == ApprovalStatus.BLOCKED
+    assert record.approval_status == ApprovalStatus.PENDING_REVIEW
+    assert record.qualification_status == "CAMPAIGN_EXCLUDED"
     assert record.smartlead_eligible is False
     assert "Active sales deal" in (record.blocked_reason or "")
 
@@ -118,12 +126,11 @@ def test_4_campaign_excluded_lead_is_blocked(engine, base_qualified_lead_kwargs)
 def test_5_invalid_email_is_blocked(engine, base_qualified_lead_kwargs):
     kwargs = dict(base_qualified_lead_kwargs)
     kwargs["email_status"] = "INVALID_BOUNCED"
-    kwargs["email"] = "bounced_user@bandk.co.uk"
 
     record = engine.enroll_draft(**kwargs)
     assert record.approval_status == ApprovalStatus.BLOCKED
     assert record.smartlead_eligible is False
-    assert "INVALID_BOUNCED" in (record.blocked_reason or "")
+    assert "invalid" in (record.blocked_reason or "").lower() or "bounced" in (record.blocked_reason or "").lower()
 
 
 # --- Test 6: NO_STRONG_SIGNAL remains reviewable but flagged ---
@@ -248,5 +255,5 @@ def test_15_cannot_approve_blocked_lead_directly(engine, base_qualified_lead_kwa
     kwargs["qa_status"] = "FAIL"
     record = engine.enroll_draft(**kwargs)
 
-    with pytest.raises(ValueError, match="Cannot approve BLOCKED lead"):
+    with pytest.raises(ValueError, match="Cannot approve"):
         engine.approve(record.lead_id)

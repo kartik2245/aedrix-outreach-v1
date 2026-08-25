@@ -86,7 +86,22 @@ class DeeplineExportAdapter:
         company_domain = re.sub(r"^https?://", "", domain_str)
         company_domain = re.sub(r"^www\.", "", company_domain).strip()
 
-        # Resolve country: AI Ark may return location as a dict with keys like COUNTRY, DEFAULT, etc.
+        # Resolve location fields: AI Ark & Deepline return city, state, address, location dict/str
+        def _extract_loc_str(field_name: str) -> str:
+            val = raw.get(field_name) or comp_obj.get(field_name)
+            if isinstance(val, dict):
+                return str(
+                    val.get("CITY") or val.get("city") or
+                    val.get("STATE") or val.get("state") or
+                    val.get("COUNTRY") or val.get("country") or
+                    val.get("DEFAULT") or val.get("default") or ""
+                ).strip()
+            return str(val or "").strip()
+
+        city = _extract_loc_str("city") or _extract_loc_str("location_city")
+        state = _extract_loc_str("state") or _extract_loc_str("region")
+        address = _extract_loc_str("address")
+
         def _extract_country_str(raw_loc: Any) -> str:
             if isinstance(raw_loc, dict):
                 return str(
@@ -104,20 +119,38 @@ class DeeplineExportAdapter:
             or raw.get("location")
             or comp_obj.get("location")
             or comp_obj.get("company_location")
-            or "UK"
+            or ""
         ).upper()
+
+        loc_val = raw.get("location") or comp_obj.get("location")
+        if isinstance(loc_val, dict):
+            if not city:
+                city = str(loc_val.get("CITY") or loc_val.get("city") or "").strip()
+            if not state:
+                state = str(loc_val.get("STATE") or loc_val.get("state") or "").strip()
+            location_str = ", ".join([v for v in [city, state, country] if v])
+        else:
+            location_str = str(loc_val or "").strip()
+
+        comp_loc_val = raw.get("company_location") or comp_obj.get("company_location")
+        if isinstance(comp_loc_val, dict):
+            comp_loc_str = ", ".join([v for v in [comp_loc_val.get("CITY") or comp_loc_val.get("city"), comp_loc_val.get("COUNTRY") or comp_loc_val.get("country")] if v])
+        else:
+            comp_loc_str = str(comp_loc_val or "").strip()
+
         is_uk = raw.get("is_uk_operating") if raw.get("is_uk_operating") is not None else comp_obj.get("is_uk_operating")
         if is_uk is not None:
             is_uk_operating = bool(is_uk)
         else:
-            is_uk_operating = country == "UK" or any(kw in country for kw in ["UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB"])
+            is_uk_operating = (country in ("UK", "UNITED KINGDOM", "ENGLAND", "SCOTLAND", "WALES", "GB", "GBR") or country == "")
 
-        industry = str(raw.get("industry") or comp_obj.get("industry") or "Construction").strip()
+        industry = str(raw.get("industry") or comp_obj.get("industry") or "General").strip()
         is_const = raw.get("is_construction_sector") if raw.get("is_construction_sector") is not None else comp_obj.get("is_construction_sector")
         if is_const is not None:
             is_construction_sector = bool(is_const)
         else:
-            is_construction_sector = "software" not in industry.lower()
+            ind_lower = industry.lower()
+            is_construction_sector = any(kw in ind_lower for kw in ["construction", "contractor", "building", "civil engineering", "infrastructure"])
 
         company_size = str(
             raw.get("company_size")
@@ -182,12 +215,32 @@ class DeeplineExportAdapter:
         )
         linkedin_url = str(linkedin_raw).strip() if linkedin_raw else None
 
-        email_status_str = str(raw.get("email_status", EmailStatus.PATTERN_CONFIRMED.value)).strip().upper()
-        try:
-            email_status = EmailStatus(email_status_str)
-        except ValueError:
-            warnings.append(f"INVALID_EMAIL_STATUS: '{email_status_str}' is invalid. Defaulting to PATTERN_CONFIRMED.")
-            email_status = EmailStatus.PATTERN_CONFIRMED
+        # Email & Verification Status resolution
+        raw_email_status = str(
+            raw.get("email_status")
+            or raw.get("email_verification_status")
+            or raw.get("email_status_input")
+            or ""
+        ).strip().upper()
+
+        if not email or "@" not in email or "." not in email.split("@")[-1] or raw_email_status in ("NO_EMAIL", "INVALID", "MALFORMED"):
+            email_status = EmailStatus.NO_EMAIL if not email or raw_email_status == "NO_EMAIL" else EmailStatus.INVALID
+        elif raw_email_status in ("VALID", "VERIFIED", "EVIDENCE_VERIFIED"):
+            email_status = EmailStatus.VERIFIED
+        elif raw_email_status in ("UNVERIFIED", "PATTERN_CONFIRMED", "CATCHALL_UNVERIFIED", "UNKNOWN"):
+            email_status = EmailStatus.UNVERIFIED
+        elif raw_email_status in ("INVALID_BOUNCED", "BOUNCED"):
+            email_status = EmailStatus.BOUNCED
+        elif raw_email_status in ("SUPPRESSED", "GLOBAL_SUPPRESSED"):
+            email_status = EmailStatus.SUPPRESSED
+        elif raw_email_status in ("OPT_OUT", "OPTED_OUT"):
+            email_status = EmailStatus.OPT_OUT
+        else:
+            try:
+                email_status = EmailStatus(raw_email_status)
+            except ValueError:
+                warnings.append(f"INVALID_EMAIL_STATUS: '{raw_email_status}' is invalid. Defaulting to UNVERIFIED.")
+                email_status = EmailStatus.UNVERIFIED if email else EmailStatus.NO_EMAIL
 
         signals_raw = raw.get("research_signals")
         if isinstance(signals_raw, list) and signals_raw:
@@ -218,7 +271,7 @@ class DeeplineExportAdapter:
             warnings.append("UNSUPPORTED_VERIFIED_CLAIM: Signal marked VERIFIED without research sources. Downgrading to INFERRED.")
             signal_ev = EvidenceLevel.INFERRED
 
-        pain_point = str(raw.get("pain_point", "Managing pre-construction document control across multi-site teams."))
+        pain_point = str(raw.get("pain_point", "Operational efficiency and digital transformation challenges."))
         pain_point_ev_raw = evidence_levels.get("pain_point") if isinstance(evidence_levels, dict) else None
         if not pain_point_ev_raw:
             pain_point_ev_raw = raw.get("pain_point_evidence")
@@ -234,6 +287,11 @@ class DeeplineExportAdapter:
         res = {
             "company_name": company_name,
             "company_domain": company_domain,
+            "city": city,
+            "state": state,
+            "address": address,
+            "location": location_str or city or country,
+            "company_location": comp_loc_str or location_str or country,
             "country": country,
             "is_uk_operating": is_uk_operating,
             "industry": industry,
@@ -245,6 +303,7 @@ class DeeplineExportAdapter:
             "contact_name": contact_name,
             "job_title": job_title,
             "email": email,
+            "email_status": email_status,
             "email_status_input": email_status,
             "linkedin_url": linkedin_url,
             "relevant_signal": primary_signal,
@@ -261,9 +320,9 @@ class DeeplineExportAdapter:
             }
         }
 
-        # Preserve qualification flags if present
-        for key in ["is_active_crm_deal", "is_existing_client", "is_global_suppressed", "contacted_within_60_days", "is_hard_bounce", "email_invalid"]:
-            if key in raw:
+        # Preserve qualification flags & location attributes if present
+        for key in ["city", "state", "address", "location", "company_location", "region", "geography", "is_active_crm_deal", "is_existing_client", "is_global_suppressed", "contacted_within_60_days", "is_hard_bounce", "email_invalid"]:
+            if key in raw and raw[key] and not res.get(key):
                 res[key] = raw[key]
 
         return res

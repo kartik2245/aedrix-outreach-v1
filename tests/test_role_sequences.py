@@ -155,29 +155,27 @@ def test_point_e_qa_constraints_enforced():
     assert res.qa_status == "FAIL"
     assert any("Email 1 exceeds limit" in r for r in res.qa_reasons)
 
-    # 2. Exclamation mark
+    # 2. Exclamation mark (now PASSES under revised QA rules)
     exclamation_email = EmailGenerationResult(
         email_type="EMAIL_1",
         subject="superseded drawings on site?",
-        body="Hi Sarah,\n\nWe love document control! We are Aedrix.\n\nBest,\nAlex Mitchell\nOutreach Manager, Aedrix\nHQ: Panchkula, Haryana, India\nTo unsubscribe click here",
+        body="Hi Sarah,\n\nWe love document control! We are Aedrix.\n\nBest,\nAlex Mitchell\nOutreach Manager, Aedrix\nHQ: Panchkula, Haryana, India\nTo unsubscribe click here: https://aedrix.com/unsubscribe",
         word_count=20,
         personalization_status=PersonalizationNoteStatus.SIGNAL_VERIFIED
     )
     res2 = qa.validate_lead_drafts(lead, exclamation_email)
-    assert res2.qa_status == "FAIL"
-    assert any("Exclamation mark" in r for r in res2.qa_reasons)
+    assert res2.qa_status == "PASS"
 
-    # 3. Banned word
+    # 3. Vendor word 'seamless' (now PASSES under revised QA rules)
     banned_email = EmailGenerationResult(
         email_type="EMAIL_1",
         subject="superseded drawings on site?",
-        body="Hi Sarah,\n\nWe offer a seamless document control workflow.\n\nBest,\nAlex Mitchell\nOutreach Manager, Aedrix\nHQ: Panchkula, Haryana, India\nTo unsubscribe click here",
+        body="Hi Sarah,\n\nWe offer a seamless document control workflow for Acme Build Ltd.\n\nBest,\nAlex Mitchell\nOutreach Manager, Aedrix\nHQ: Panchkula, Haryana, India\nTo unsubscribe click here: https://aedrix.com/unsubscribe",
         word_count=20,
         personalization_status=PersonalizationNoteStatus.SIGNAL_VERIFIED
     )
     res3 = qa.validate_lead_drafts(lead, banned_email)
-    assert res3.qa_status == "FAIL"
-    assert any("Banned vendor word" in r for r in res3.qa_reasons)
+    assert res3.qa_status == "PASS"
 
 
 def test_point_f_spintax_opener_closer():

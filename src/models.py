@@ -16,6 +16,17 @@ class EvidenceLevel(str, Enum):
 
 
 class EmailStatus(str, Enum):
+    VALID = "VALID"
+    VERIFIED = "VERIFIED"
+    UNVERIFIED = "UNVERIFIED"
+    NO_EMAIL = "NO_EMAIL"
+    INVALID = "INVALID"
+    BOUNCED = "BOUNCED"
+    SUPPRESSED = "SUPPRESSED"
+    OPT_OUT = "OPT_OUT"
+    UNKNOWN = "UNKNOWN"
+
+    # Backward compatibility aliases
     EVIDENCE_VERIFIED = "EVIDENCE_VERIFIED"
     PATTERN_CONFIRMED = "PATTERN_CONFIRMED"
     CATCHALL_UNVERIFIED = "CATCHALL_UNVERIFIED"
@@ -88,6 +99,16 @@ class VoCContext(BaseModel):
     personalization_note_status: PersonalizationNoteStatus
     aedrix_value_prop: str
     evidence_level: EvidenceLevel = EvidenceLevel.UNKNOWN
+    campaign_name: Optional[str] = None
+    campaign_objective: Optional[str] = None
+    product_or_service: Optional[str] = None
+    value_proposition: Optional[str] = None
+    offer: Optional[str] = None
+    cta: Optional[str] = None
+    company_name: Optional[str] = None
+    sender_name: Optional[str] = None
+    geography: Optional[str] = None
+    industry: Optional[str] = None
 
 
 class PersonalizationQAResult(BaseModel):
